@@ -24,7 +24,10 @@ COPY app/ ./app/
 COPY configs/ ./configs/
 
 # Copy model weights from downloader stage
-COPY --from=downloader /model_cache /root/.cache/huggingface
+COPY --from=downloader /model_cache /root/.cache/huggingface/hub
+
+ENV HF_HUB_OFFLINE=1
+ENV HF_HUB_DISABLE_TELEMETRY=1
 
 # Create samples directory for volume mount
 RUN mkdir -p /samples
