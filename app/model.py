@@ -43,7 +43,9 @@ class VJepa2Model:
             List of Prediction(label, score), sorted by score descending.
         """
         inputs = self.processor(list(frames), return_tensors="pt")
-        pixel_values = inputs["pixel_values"].to(self.device)
+        # V-JEPA2 processor uses "pixel_values_videos" key
+        key = "pixel_values_videos" if "pixel_values_videos" in inputs else "pixel_values"
+        pixel_values = inputs[key].to(self.device)
 
         with torch.no_grad():
             outputs = self.model(pixel_values)

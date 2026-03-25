@@ -19,7 +19,7 @@ def mock_model_and_processor():
         # Mock processor
         processor_instance = MagicMock()
         processor_instance.return_value = {
-            "pixel_values": torch.randn(1, 16, 3, 256, 256)
+            "pixel_values_videos": torch.randn(1, 16, 3, 256, 256)
         }
         MockProcessor.from_pretrained.return_value = processor_instance
 
