@@ -1,0 +1,9 @@
+services:
+  vjepa2:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./samples:/samples:ro
+    environment:
+      - DEVICE=cpu
