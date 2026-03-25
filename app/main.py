@@ -106,3 +106,64 @@ async def infer(
             )
         ],
     )
+
+
+@app.websocket("/v2/models/vjepa2/stream")
+async def stream(websocket: WebSocket):
+    await websocket.accept()
+
+    if _model is None:
+        await websocket.send_json({"error": "Model not ready"})
+        await websocket.close(code=1011)
+        return
+
+    try:
+        raw = await websocket.receive_json()
+        config = StreamConfig(**raw)
+    except Exception as e:
+        await websocket.send_json({"error": f"Invalid config: {e}"})
+        await websocket.close(code=1008)
+        return
+
+    source_path = Path(config.source)
+    allowed_dir = Path(CONFIG["server"]["allowed_source_dir"])
+
+    # Security: resolve and check path is within allowed directory
+    try:
+        resolved = source_path.resolve()
+        if not str(resolved).startswith(str(allowed_dir.resolve())):
+            await websocket.send_json({"error": "Source path not allowed"})
+            await websocket.close(code=1008)
+            return
+    except Exception:
+        await websocket.send_json({"error": "Source path not allowed"})
+        await websocket.close(code=1008)
+        return
+
+    if not source_path.exists():
+        await websocket.send_json({"error": f"File not found: {config.source}"})
+        await websocket.close(code=1008)
+        return
+
+    frames_processed = 0
+    try:
+        for window in stream_frames(source_path, config.num_frames, config.stride):
+            predictions = _model.predict(window, top_k=config.top_k)
+            msg = StreamPrediction(
+                timestamp_ms=int(frames_processed * 1000 / 30),
+                frame_range=[frames_processed, frames_processed + config.num_frames],
+                predictions=predictions,
+            )
+            await websocket.send_json(msg.model_dump())
+            frames_processed += config.stride
+    except WebSocketDisconnect:
+        return
+    except Exception as e:
+        await websocket.send_json({"error": f"Inference failed: {e}"})
+        await websocket.close(code=1011)
+        return
+
+    await websocket.send_json(
+        StreamComplete(status="complete", frames_processed=frames_processed).model_dump()
+    )
+    await websocket.close()
