@@ -1,5 +1,6 @@
 # app/main.py
 import os
+import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -61,4 +62,47 @@ def model_metadata():
         name=CONFIG["model"]["name"],
         versions=["vit-l-16-ssv2"],
         platform="pytorch",
+    )
+
+
+@app.post("/v2/models/vjepa2/infer")
+async def infer(
+    file: UploadFile = File(...),
+    top_k: int = Form(default=CONFIG["inference"]["default_top_k"]),
+    num_frames: int = Form(default=CONFIG["inference"]["num_frames"]),
+):
+    if _model is None:
+        return JSONResponse({"error": "Model not ready"}, status_code=503)
+
+    # Save uploaded file to temp location for PyAV
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        frames = decode_video(tmp_path, num_frames=num_frames)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse(
+            {"error": f"Could not decode video: {e}"}, status_code=400
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    predictions = _model.predict(frames, top_k=top_k)
+
+    return InferenceResponse(
+        model_name=CONFIG["model"]["name"],
+        model_version="vit-l-16-ssv2",
+        id=f"req-{uuid.uuid4().hex[:8]}",
+        outputs=[
+            OutputTensor(
+                name="predictions",
+                shape=[len(predictions)],
+                datatype="FP32",
+                data=predictions,
+            )
+        ],
     )
