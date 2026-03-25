@@ -1,6 +1,9 @@
 # tests/test_main.py
+import io
 from unittest.mock import MagicMock, patch
 
+import av
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -41,12 +44,6 @@ def test_model_metadata(client):
     assert data["name"] == "vjepa2"
     assert "versions" in data
     assert data["platform"] == "pytorch"
-
-
-import io
-
-import av
-import numpy as np
 
 
 def _make_video_bytes(num_frames: int = 60) -> bytes:

@@ -53,6 +53,7 @@ def stream_frames(
             if frames_since_yield >= stride or len(buffer) == num_frames:
                 window = np.stack(buffer[-num_frames:])
                 yield window
+                buffer = buffer[-num_frames:]
                 frames_since_yield = 0
 
     container.close()
