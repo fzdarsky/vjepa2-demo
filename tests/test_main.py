@@ -102,13 +102,32 @@ def test_infer_custom_top_k(client, mock_vjepa2_model):
 
 
 def test_infer_video_too_short(client, mock_vjepa2_model):
+    # After iter_clips refactor, short videos are padded, not rejected
+    mock_vjepa2_model.predict.return_value = [
+        Prediction(label="Action 1", score=0.9),
+    ]
     video_bytes = _make_video_bytes(num_frames=4)
     resp = client.post(
         "/v2/models/vjepa2/infer",
         files={"file": ("short.mp4", video_bytes, "video/mp4")},
     )
-    assert resp.status_code == 400
-    assert "frames" in resp.json()["error"].lower()
+    assert resp.status_code == 200
+
+
+def test_infer_with_stride_returns_multiple_clips(client, mock_vjepa2_model):
+    mock_vjepa2_model.predict.return_value = [
+        Prediction(label="Action 1", score=0.9),
+    ]
+    video_bytes = _make_video_bytes(num_frames=60)
+    resp = client.post(
+        "/v2/models/vjepa2/infer",
+        files={"file": ("test.mp4", video_bytes, "video/mp4")},
+        data={"stride": "16", "num_frames": "16"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "clips" in data
+    assert len(data["clips"]) >= 2
 
 
 def test_websocket_stream(client, mock_vjepa2_model, sample_video_path):
