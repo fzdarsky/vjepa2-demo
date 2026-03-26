@@ -24,10 +24,10 @@ def select_device(requested: str | None = None) -> str:
 
 
 class VJepa2Model:
-    def __init__(self, hf_model_id: str, device: str):
+    def __init__(self, model_path: str, device: str):
         self.device = device
-        self.processor = AutoVideoProcessor.from_pretrained(hf_model_id)
-        self.model = AutoModelForVideoClassification.from_pretrained(hf_model_id)
+        self.processor = AutoVideoProcessor.from_pretrained(model_path)
+        self.model = AutoModelForVideoClassification.from_pretrained(model_path)
         self.model.to(device)
         self.model.eval()
         self.id2label: dict[int, str] = self.model.config.id2label

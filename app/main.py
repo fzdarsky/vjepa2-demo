@@ -33,8 +33,12 @@ _model: VJepa2Model | None = None
 async def lifespan(app: FastAPI):
     global _model
     device = select_device(os.environ.get("DEVICE"))
+    model_path = os.environ.get(
+        "MODEL_PATH",
+        CONFIG["model"].get("model_path", CONFIG["model"]["hf_model_id"]),
+    )
     _model = VJepa2Model(
-        hf_model_id=CONFIG["model"]["hf_model_id"],
+        model_path=model_path,
         device=device,
     )
     yield

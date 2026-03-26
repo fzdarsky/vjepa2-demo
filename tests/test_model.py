@@ -40,14 +40,14 @@ def mock_model_and_processor():
 
 def test_model_init(mock_model_and_processor):
     model = VJepa2Model(
-        hf_model_id="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
+        model_path="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
     )
     assert model.device == "cpu"
 
 
 def test_model_predict_returns_predictions(mock_model_and_processor):
     model = VJepa2Model(
-        hf_model_id="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
+        model_path="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
     )
     frames = np.random.randint(0, 255, (16, 256, 256, 3), dtype=np.uint8)
     predictions = model.predict(frames, top_k=5)
@@ -60,7 +60,7 @@ def test_model_predict_returns_predictions(mock_model_and_processor):
 
 def test_model_predict_top_k(mock_model_and_processor):
     model = VJepa2Model(
-        hf_model_id="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
+        model_path="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
     )
     frames = np.random.randint(0, 255, (16, 256, 256, 3), dtype=np.uint8)
 
@@ -73,9 +73,23 @@ def test_model_predict_top_k(mock_model_and_processor):
 
 def test_model_scores_sum_to_one(mock_model_and_processor):
     model = VJepa2Model(
-        hf_model_id="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
+        model_path="facebook/vjepa2-vitl-fpc16-256-ssv2", device="cpu"
     )
     frames = np.random.randint(0, 255, (16, 256, 256, 3), dtype=np.uint8)
     predictions = model.predict(frames, top_k=174)
     total = sum(p.score for p in predictions)
     assert abs(total - 1.0) < 1e-5
+
+
+def test_vjepa2_model_loads_from_path():
+    with patch("app.model.AutoVideoProcessor") as MockProc, \
+         patch("app.model.AutoModelForVideoClassification") as MockModel:
+        mock_model_instance = MagicMock()
+        mock_model_instance.config.id2label = {0: "Action 0"}
+        MockModel.from_pretrained.return_value = mock_model_instance
+
+        from app.model import VJepa2Model
+        model = VJepa2Model(model_path="/model", device="cpu")
+
+        MockProc.from_pretrained.assert_called_once_with("/model")
+        MockModel.from_pretrained.assert_called_once_with("/model")
