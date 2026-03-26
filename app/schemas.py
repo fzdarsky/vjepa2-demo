@@ -1,5 +1,14 @@
 # app/schemas.py
+from dataclasses import dataclass
+import numpy as np
 from pydantic import BaseModel, Field, field_validator
+
+
+@dataclass
+class Clip:
+    frames: np.ndarray    # (num_frames, H, W, 3) uint8
+    start_frame: int      # index in source video
+    end_frame: int        # exclusive end index
 
 
 class Prediction(BaseModel):

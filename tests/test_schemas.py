@@ -7,7 +7,9 @@ from app.schemas import (
     StreamConfig,
     StreamPrediction,
     StreamComplete,
+    Clip,
 )
+import numpy as np
 
 
 def test_prediction_valid():
@@ -78,3 +80,19 @@ def test_stream_prediction():
 def test_stream_complete():
     sc = StreamComplete(status="complete", frames_processed=240)
     assert sc.frames_processed == 240
+
+
+def test_clip_dataclass():
+    frames = np.zeros((16, 240, 320, 3), dtype=np.uint8)
+    clip = Clip(frames=frames, start_frame=0, end_frame=16)
+    assert clip.start_frame == 0
+    assert clip.end_frame == 16
+    assert clip.frames.shape == (16, 240, 320, 3)
+
+
+def test_clip_partial_detection():
+    frames = np.zeros((16, 240, 320, 3), dtype=np.uint8)
+    partial = Clip(frames=frames, start_frame=48, end_frame=55)
+    assert partial.end_frame - partial.start_frame < frames.shape[0]
+    full = Clip(frames=frames, start_frame=0, end_frame=16)
+    assert full.end_frame - full.start_frame == frames.shape[0]
