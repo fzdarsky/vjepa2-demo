@@ -93,3 +93,18 @@ def test_infer_save_frames_creates_output(mock_model, sample_video_path, tmp_pat
         cmd_infer(args)
     output_dir = tmp_path / "output"
     assert output_dir.exists()
+
+
+def test_download_calls_snapshot_download(tmp_path):
+    from pathlib import Path
+    args = argparse.Namespace(
+        model="facebook/vjepa2-vitl-fpc16-256-ssv2",
+        output=str(tmp_path / "model"),
+    )
+    with patch("huggingface_hub.snapshot_download") as mock_dl:
+        from app.cli import cmd_download
+        cmd_download(args)
+        mock_dl.assert_called_once_with(
+            "facebook/vjepa2-vitl-fpc16-256-ssv2",
+            local_dir=Path(str(tmp_path / "model")),
+        )

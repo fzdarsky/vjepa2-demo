@@ -121,9 +121,12 @@ def cmd_infer(args):
 
 def cmd_download(args):
     """Download a HuggingFace model into a directory."""
-    # Placeholder -- implemented in Task 8
-    print("download not yet implemented", file=sys.stderr)
-    sys.exit(1)
+    from huggingface_hub import snapshot_download
+    output_path = Path(args.output)
+    output_path.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading {args.model} to {output_path}...", file=sys.stderr)
+    snapshot_download(args.model, local_dir=output_path)
+    print("Download complete.", file=sys.stderr)
 
 
 def main():
