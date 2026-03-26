@@ -1,0 +1,8 @@
+FROM scratch
+
+# Layer 1: config + preprocessor (small, shared across variants)
+COPY model/config.json              /model/
+COPY model/preprocessor_config.json /model/
+
+# Layer 2+: weight shards (separate layers for parallel pull)
+COPY model/model.safetensors        /model/

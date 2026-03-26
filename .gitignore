@@ -1,5 +1,11 @@
+.claude/
 .worktrees/
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.superpowers/
+docs/research/
+model-staging/
+output/
+samples/

@@ -6,6 +6,12 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./samples:/samples:ro
+      - vjepa2-vitl:/model:ro
+      - ./samples:/input:ro
+      - ./output:/output
     environment:
       - DEVICE=cpu
+
+volumes:
+  vjepa2-vitl:
+    external: true

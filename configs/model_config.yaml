@@ -1,6 +1,7 @@
 model:
   name: vjepa2
   hf_model_id: facebook/vjepa2-vitl-fpc16-256-ssv2
+  model_path: /model
   num_classes: 174
 
 inference:
@@ -12,4 +13,4 @@ server:
   host: 0.0.0.0
   port: 8080
   max_upload_bytes: 104857600
-  allowed_source_dir: /samples
+  allowed_source_dir: /input
