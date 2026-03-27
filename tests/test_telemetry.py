@@ -4,6 +4,9 @@ import pytest
 from unittest.mock import MagicMock, patch
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.telemetry import init_telemetry, get_meter, get_tracer
 
@@ -148,4 +151,55 @@ def test_realtime_violation_counted():
 
         pytest.fail("vjepa2_clip_realtime_violations_total metric not found")
     finally:
+        tel._meter = original_meter
+
+
+def test_trace_spans_created(sample_video_path):
+    """An inference call produces trace spans for decode, preprocess, inference, postprocess."""
+    span_exporter = InMemorySpanExporter()
+    tracer_provider = SdkTracerProvider()
+    tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter))
+
+    import app.telemetry as tel
+    original_tracer = tel._tracer
+    original_meter = tel._meter
+    try:
+        tel._tracer = tracer_provider.get_tracer("vjepa2")
+        # Use no-op meter to avoid needing a real meter provider
+        tel._meter = tel._NoOpMeter()
+
+        with (
+            patch("app.model.AutoModelForVideoClassification") as MockModel,
+            patch("app.model.AutoVideoProcessor") as MockProcessor,
+        ):
+            import torch
+
+            processor_instance = MagicMock()
+            processor_instance.return_value = {
+                "pixel_values_videos": torch.randn(1, 16, 3, 256, 256)
+            }
+            MockProcessor.from_pretrained.return_value = processor_instance
+
+            model_instance = MagicMock()
+            model_instance.config.id2label = {i: f"Action {i}" for i in range(174)}
+            logits = torch.randn(1, 174)
+            model_instance.return_value = MagicMock(logits=logits)
+            model_instance.to.return_value = model_instance
+            model_instance.eval.return_value = model_instance
+            MockModel.from_pretrained.return_value = model_instance
+
+            from app.model import VJepa2Model
+            from app.video import decode_video
+
+            model = VJepa2Model(model_path="test", device="cpu")
+            frames = decode_video(sample_video_path, num_frames=16)
+            model.predict(frames, top_k=5)
+
+        span_names = [span.name for span in span_exporter.get_finished_spans()]
+        assert "decode_video" in span_names
+        assert "preprocess" in span_names
+        assert "inference" in span_names
+        assert "postprocess" in span_names
+    finally:
+        tel._tracer = original_tracer
         tel._meter = original_meter

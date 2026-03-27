@@ -58,5 +58,9 @@ def iter_clips(
 def decode_video(source: str | Path, num_frames: int) -> np.ndarray:
     """Convenience: return frames from first clip.
     Backward-compatible with milestone 1 callers."""
-    clip = next(iter_clips(source, num_frames, stride=num_frames))
-    return clip.frames
+    from app.telemetry import get_tracer
+
+    tracer = get_tracer()
+    with tracer.start_as_current_span("decode_video"):
+        clip = next(iter_clips(source, num_frames, stride=num_frames))
+        return clip.frames
