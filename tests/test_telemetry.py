@@ -1,6 +1,11 @@
 # tests/test_telemetry.py
+import numpy as np
+import pytest
+from unittest.mock import MagicMock, patch
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+
 from app.telemetry import init_telemetry, get_meter, get_tracer
-from unittest.mock import patch
 
 
 def test_telemetry_init():
@@ -41,3 +46,106 @@ def test_telemetry_noop_fallback():
         tel._HAS_OTEL = original_has_otel
         tel._meter = original_meter
         tel._tracer = original_tracer
+
+
+def test_clip_metrics_recorded():
+    """After an inference call, clip processing histogram has an observation."""
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader])
+
+    import app.telemetry as tel
+    original_meter = tel._meter
+    try:
+        tel._meter = provider.get_meter("vjepa2")
+
+        with (
+            patch("app.model.AutoModelForVideoClassification") as MockModel,
+            patch("app.model.AutoVideoProcessor") as MockProcessor,
+        ):
+            import torch
+
+            processor_instance = MagicMock()
+            processor_instance.return_value = {
+                "pixel_values_videos": torch.randn(1, 16, 3, 256, 256)
+            }
+            MockProcessor.from_pretrained.return_value = processor_instance
+
+            model_instance = MagicMock()
+            model_instance.config.id2label = {i: f"Action {i}" for i in range(174)}
+            logits = torch.randn(1, 174)
+            model_instance.return_value = MagicMock(logits=logits)
+            model_instance.to.return_value = model_instance
+            model_instance.eval.return_value = model_instance
+            MockModel.from_pretrained.return_value = model_instance
+
+            from app.model import VJepa2Model
+
+            model = VJepa2Model(model_path="test", device="cpu")
+            frames = np.random.randint(0, 255, (16, 256, 256, 3), dtype=np.uint8)
+            model.predict(frames, top_k=5)
+
+        metrics_data = reader.get_metrics_data()
+        metric_names = []
+        for resource_metric in metrics_data.resource_metrics:
+            for scope_metric in resource_metric.scope_metrics:
+                for metric in scope_metric.metrics:
+                    metric_names.append(metric.name)
+
+        assert "vjepa2_clip_processing_seconds" in metric_names
+        assert "vjepa2_clips_processed_total" in metric_names
+    finally:
+        tel._meter = original_meter
+
+
+def test_realtime_violation_counted():
+    """When clip processing exceeds stride/fps, violation counter increments."""
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader])
+
+    import app.telemetry as tel
+    original_meter = tel._meter
+    try:
+        tel._meter = provider.get_meter("vjepa2")
+
+        with (
+            patch("app.model.AutoModelForVideoClassification") as MockModel,
+            patch("app.model.AutoVideoProcessor") as MockProcessor,
+            patch("app.model.time") as mock_time,
+        ):
+            import torch
+
+            processor_instance = MagicMock()
+            processor_instance.return_value = {
+                "pixel_values_videos": torch.randn(1, 16, 3, 256, 256)
+            }
+            MockProcessor.from_pretrained.return_value = processor_instance
+
+            model_instance = MagicMock()
+            model_instance.config.id2label = {i: f"Action {i}" for i in range(174)}
+            logits = torch.randn(1, 174)
+            model_instance.return_value = MagicMock(logits=logits)
+            model_instance.to.return_value = model_instance
+            model_instance.eval.return_value = model_instance
+            MockModel.from_pretrained.return_value = model_instance
+
+            # Simulate 0.5s processing time — exceeds stride=8 / fps=30 = 0.267s
+            mock_time.monotonic.side_effect = [0.0, 0.5]
+
+            from app.model import VJepa2Model
+
+            model = VJepa2Model(model_path="test", device="cpu")
+            frames = np.random.randint(0, 255, (16, 256, 256, 3), dtype=np.uint8)
+            model.predict(frames, top_k=5, stride=8, source_fps=30.0)
+
+        metrics_data = reader.get_metrics_data()
+        for resource_metric in metrics_data.resource_metrics:
+            for scope_metric in resource_metric.scope_metrics:
+                for metric in scope_metric.metrics:
+                    if metric.name == "vjepa2_clip_realtime_violations_total":
+                        point = metric.data.data_points[0]
+                        assert point.value >= 1
+                        return
+
+        pytest.fail("vjepa2_clip_realtime_violations_total metric not found")
+    finally:
+        tel._meter = original_meter
