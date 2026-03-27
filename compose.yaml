@@ -12,6 +12,7 @@ services:
       - ./output:/output
     environment:
       - DEVICE=cuda
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 
   vjepa2-server-cpu:
     profiles: [cpu]
@@ -26,6 +27,55 @@ services:
       - ./output:/output
     environment:
       - DEVICE=cpu
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+
+  otel-collector:
+    profiles: [observability]
+    image: otel/opentelemetry-collector-contrib:latest
+    ports:
+      - "4317:4317"
+      - "8889:8889"
+    volumes:
+      - ./configs/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+
+  jaeger:
+    profiles: [observability]
+    image: jaegertracing/jaeger:latest
+    ports:
+      - "16686:16686"
+      - "4318:4317"
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./configs/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ./configs/grafana/dashboards/dashboard.yaml:/etc/grafana/provisioning/dashboards/dashboard.yaml:ro
+      - ./configs/grafana/dashboards/vjepa2.json:/var/lib/grafana/dashboards/vjepa2.json:ro
+
+  dcgm-exporter:
+    profiles: [gpu-metrics]
+    image: nvidia/dcgm-exporter:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    ports:
+      - "9400:9400"
 
 volumes:
   vjepa2-model-vitl:
