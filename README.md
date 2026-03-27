@@ -136,3 +136,49 @@ MODEL_PATH=./model-staging python -m app serve
 ```
 
 MPS acceleration is not available inside containers — Podman's Linux VM exposes Vulkan (via virtio-gpu), not Metal/MPS. Use native execution for Apple Silicon GPU performance.
+
+## Observability
+
+The app includes an optional observability stack powered by OpenTelemetry, Prometheus, Jaeger, and Grafana.
+
+### Quick Start
+
+```bash
+# Run with CPU inference + observability
+podman compose --profile cpu --profile observability up --build
+
+# Run with CUDA inference + observability + GPU metrics
+podman compose --profile cuda --profile observability --profile gpu-metrics up --build
+```
+
+### Access Points
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| App | http://localhost:8080 | V-JEPA2 inference API |
+| Grafana | http://localhost:3000 | Pre-built dashboard |
+| Jaeger | http://localhost:16686 | Trace visualization |
+| Prometheus | http://localhost:9090 | Metrics queries |
+
+### Dashboard
+
+Grafana comes with a pre-provisioned "V-JEPA2 Inference" dashboard showing:
+
+- **Clip Golden Signals** — latency, throughput, real-time violations, resource utilization
+- **Pipeline Phase Breakdown** — where clip processing time is spent (decode, preprocess, inference, postprocess)
+- **API Golden Signals** — request latency, throughput, HTTP errors, active connections
+- **Stat Panels** — device type, model load time, current real-time ratio, uptime
+
+### Viewing Traces
+
+After running an inference request, open Jaeger at http://localhost:16686 and search for the `vjepa2-server` service. Each inference request shows a trace waterfall with spans for decode, preprocess, inference, and postprocess phases.
+
+### OpenShift Deployment
+
+The same app instrumentation works on OpenShift without code changes. The OTel Collector, Prometheus, and Jaeger are provided by:
+
+- Cluster Observability Operator (OpenTelemetryCollector CR)
+- Built-in cluster monitoring (ServiceMonitor/PodMonitor CRs)
+- Red Hat distributed tracing (TempoStack or Jaeger CR)
+
+Set `OTEL_EXPORTER_OTLP_ENDPOINT` to point to your cluster's OTel Collector.
