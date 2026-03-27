@@ -1,17 +1,32 @@
 services:
-  vjepa2:
+  vjepa2-server-cuda:
+    profiles: [cuda]
     build:
       context: .
-      dockerfile: Containerfile
+      dockerfile: Containerfile.cuda
     ports:
       - "8080:8080"
     volumes:
-      - vjepa2-vitl:/model:ro
+      - vjepa2-model-vitl:/model:ro
+      - ./samples:/input:ro
+      - ./output:/output
+    environment:
+      - DEVICE=cuda
+
+  vjepa2-server-cpu:
+    profiles: [cpu]
+    build:
+      context: .
+      dockerfile: Containerfile.cpu
+    ports:
+      - "8080:8080"
+    volumes:
+      - vjepa2-model-vitl:/model:ro
       - ./samples:/input:ro
       - ./output:/output
     environment:
       - DEVICE=cpu
 
 volumes:
-  vjepa2-vitl:
+  vjepa2-model-vitl:
     external: true
