@@ -1,0 +1,24 @@
+FROM registry.redhat.io/ubi9/python-312:latest
+
+WORKDIR /app
+
+# PyTorch CPU from PyPI default index (has aarch64 wheels)
+RUN pip install --no-cache-dir 'torch>=2.6.0' 'torchvision>=0.21.0'
+
+# App dependencies (av wheel bundles FFmpeg — no system packages needed)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+COPY configs/ ./configs/
+
+VOLUME /model
+VOLUME /input
+VOLUME /output
+
+RUN mkdir -p /input /output
+
+EXPOSE 8080
+
+ENTRYPOINT ["python", "-m", "app"]
+CMD ["serve"]
