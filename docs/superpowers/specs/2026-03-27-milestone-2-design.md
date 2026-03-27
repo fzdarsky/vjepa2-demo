@@ -151,7 +151,7 @@ CMD ["serve"]
 
 ```yaml
 services:
-  vjepa2-cuda:
+  vjepa2-server-cuda:
     profiles: [cuda]
     build:
       context: .
@@ -159,13 +159,13 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - vjepa2-vitl:/model:ro
+      - vjepa2-model-vitl:/model:ro
       - ./samples:/input:ro
       - ./output:/output
     environment:
       - DEVICE=cuda
 
-  vjepa2-cpu:
+  vjepa2-server-cpu:
     profiles: [cpu]
     build:
       context: .
@@ -173,14 +173,14 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - vjepa2-vitl:/model:ro
+      - vjepa2-model-vitl:/model:ro
       - ./samples:/input:ro
       - ./output:/output
     environment:
       - DEVICE=cpu
 
 volumes:
-  vjepa2-vitl:
+  vjepa2-model-vitl:
     external: true
 ```
 
@@ -218,7 +218,7 @@ Documented steps:
 
 1. Prerequisites: Python 3.12, macOS with Apple Silicon
 2. Create virtualenv, install dependencies: `pip install -r requirements.txt` plus `pip install torch torchvision` (PyPI provides MPS-capable PyTorch on macOS)
-3. Download model: `python -m app download --model facebook/vjepa2-vitl-fpc16-256-ssv2 --output ./model-staging`
+3. Download model: `python -m app download --model facebook/vjepa2-model-vitl-fpc16-256-ssv2 --output ./model-staging`
 4. Run inference: `MODEL_PATH=./model-staging python -m app infer samples/video.mp4`
 5. Run server: `MODEL_PATH=./model-staging python -m app serve`
 
