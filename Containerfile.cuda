@@ -1,0 +1,25 @@
+FROM registry.redhat.io/rhoai/odh-pipeline-runtime-pytorch-cuda-py312-rhel9:v3.4.0-ea.1
+
+WORKDIR /app
+
+# Base image provides Python 3.12, CUDA 12.9.1, PyTorch, numpy
+# If torchvision is not pre-installed, uncomment the line below:
+# RUN pip install --no-cache-dir torchvision>=0.21.0
+
+# App dependencies (torch/torchvision pre-installed in base image)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+COPY configs/ ./configs/
+
+VOLUME /model
+VOLUME /input
+VOLUME /output
+
+RUN mkdir -p /input /output
+
+EXPOSE 8080
+
+ENTRYPOINT ["python", "-m", "app"]
+CMD ["serve"]
