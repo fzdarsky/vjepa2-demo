@@ -1,4 +1,5 @@
 # app/main.py
+import asyncio
 import os
 import tempfile
 import time
@@ -6,20 +7,31 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import numpy as np
 import yaml
 from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from PIL import Image
 
 from app.model import VJepa2Model, select_device
+from app.pipeline import StreamSession, inference_worker
 from app.schemas import (
+    BrowserStreamConfig,
+    CompleteMessage,
+    ErrorMessage,
     InferenceResponse,
     ModelMetadata,
     OutputTensor,
     Prediction,
+    RtspStreamConfig,
+    SessionMessage,
+    StreamAction,
     StreamComplete,
     StreamConfig,
     StreamPrediction,
 )
+from app.sources import browser_source, rtsp_source
 from app.telemetry import get_meter, get_tracer, init_telemetry, instrument_fastapi
 from app.video import decode_video, iter_clips
 
@@ -29,6 +41,7 @@ with open(_config_path) as f:
     CONFIG = yaml.safe_load(f)
 
 _model: VJepa2Model | None = None
+_sessions: dict[str, StreamSession] = {}
 
 
 @asynccontextmanager
@@ -63,7 +76,9 @@ async def lifespan(app: FastAPI):
 
     instrument_fastapi(app)
 
+    cleanup_task = asyncio.create_task(_session_cleanup_loop())
     yield
+    cleanup_task.cancel()
     _model = None
 
 
@@ -262,3 +277,214 @@ async def stream(websocket: WebSocket):
         StreamComplete(status="complete", frames_processed=frames_processed).model_dump()
     )
     await websocket.close()
+
+
+@app.websocket("/v2/models/vjepa2/stream/browser")
+async def stream_browser(websocket: WebSocket):
+    await websocket.accept()
+    if _model is None:
+        await websocket.send_json(ErrorMessage(message="Model not ready").model_dump())
+        await websocket.close(code=1013)
+        return
+    try:
+        raw = await websocket.receive_json()
+        config = BrowserStreamConfig(**raw)
+    except Exception as e:
+        await websocket.send_json(
+            ErrorMessage(message=f"Invalid config: {e}").model_dump()
+        )
+        await websocket.close(code=1008)
+        return
+    session = StreamSession(
+        num_frames=config.num_frames, stride=config.stride, top_k=config.top_k
+    )
+    _sessions[session.session_id] = session
+    await websocket.send_json(
+        SessionMessage(session_id=session.session_id, status="ready").model_dump()
+    )
+
+    async def on_result(result):
+        await websocket.send_json(result)
+
+    worker_task = asyncio.create_task(inference_worker(session, _model, on_result))
+    try:
+        await browser_source(websocket, session)
+        await worker_task
+    except WebSocketDisconnect:
+        session.status = "processing"
+        await session.clip_queue.put(None)
+        await worker_task
+    except Exception as e:
+        await websocket.send_json(ErrorMessage(message=str(e)).model_dump())
+        await session.clip_queue.put(None)
+        await worker_task
+        await websocket.close(code=1011)
+        return
+    session.status = "complete"
+    await websocket.send_json(
+        CompleteMessage(
+            session_id=session.session_id,
+            clips_processed=session._clip_index,
+            video_ready=True,
+        ).model_dump()
+    )
+    await websocket.close()
+
+
+@app.websocket("/v2/models/vjepa2/stream/rtsp")
+async def stream_rtsp(websocket: WebSocket):
+    await websocket.accept()
+    if _model is None:
+        await websocket.send_json(ErrorMessage(message="Model not ready").model_dump())
+        await websocket.close(code=1013)
+        return
+    try:
+        raw = await websocket.receive_json()
+        config = RtspStreamConfig(**raw)
+    except Exception as e:
+        await websocket.send_json(
+            ErrorMessage(message=f"Invalid config: {e}").model_dump()
+        )
+        await websocket.close(code=1008)
+        return
+    session = StreamSession(
+        num_frames=config.num_frames, stride=config.stride, top_k=config.top_k
+    )
+    _sessions[session.session_id] = session
+    await websocket.send_json(
+        SessionMessage(session_id=session.session_id, status="connected").model_dump()
+    )
+    stop_event = asyncio.Event()
+
+    async def on_result(result):
+        await websocket.send_json(result)
+
+    worker_task = asyncio.create_task(inference_worker(session, _model, on_result))
+
+    async def wait_for_stop():
+        try:
+            while True:
+                raw = await websocket.receive_json()
+                action = StreamAction(**raw)
+                if action.action == "stop":
+                    stop_event.set()
+                    break
+        except WebSocketDisconnect:
+            stop_event.set()
+
+    stop_task = asyncio.create_task(wait_for_stop())
+    try:
+        await rtsp_source(config.rtsp_url, session, stop_event)
+        await worker_task
+    except Exception as e:
+        await websocket.send_json(
+            ErrorMessage(message=f"RTSP error: {e}").model_dump()
+        )
+        await session.clip_queue.put(None)
+        await worker_task
+        await websocket.close(code=1011)
+        stop_task.cancel()
+        return
+    stop_task.cancel()
+    session.status = "complete"
+    await websocket.send_json(
+        CompleteMessage(
+            session_id=session.session_id,
+            clips_processed=session._clip_index,
+            video_ready=True,
+        ).model_dump()
+    )
+    await websocket.close()
+
+
+@app.get("/v2/models/vjepa2/sessions/{session_id}/preview")
+async def session_preview(session_id: str):
+    session = _sessions.get(session_id)
+    if session is None:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+
+    async def mjpeg_stream():
+        import io as _io
+
+        fps_cap = CONFIG.get("streaming", {}).get("mjpeg_fps", 10)
+        interval = 1.0 / fps_cap
+        while session.status in ("created", "ingesting"):
+            if session._latest_frame is not None:
+                img = Image.fromarray(session._latest_frame)
+                buf = _io.BytesIO()
+                img.save(buf, "JPEG", quality=70)
+                frame_bytes = buf.getvalue()
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n"
+                    b"Content-Length: "
+                    + str(len(frame_bytes)).encode()
+                    + b"\r\n\r\n"
+                    + frame_bytes
+                    + b"\r\n"
+                )
+            await asyncio.sleep(interval)
+
+    return StreamingResponse(
+        mjpeg_stream(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
+@app.get("/v2/models/vjepa2/sessions/{session_id}/video")
+async def session_video(session_id: str):
+    session = _sessions.get(session_id)
+    if session is None:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+
+    video_path = session.temp_dir / "output.mp4"
+    if not video_path.exists():
+        if session.status != "complete":
+            return JSONResponse({"error": "Video not ready yet"}, status_code=409)
+        from app.annotate import encode_video, overlay_predictions
+
+        frames_dir = session.temp_dir / "frames"
+        frame_files = sorted(frames_dir.glob("*.jpg"))
+        frames = []
+        for ff in frame_files:
+            img = Image.open(ff)
+            frames.append(np.array(img))
+
+        for result in session.results:
+            preds = [Prediction(**p) for p in result["predictions"]]
+            start, end = result["frame_range"]
+            for i in range(start, min(end, len(frames))):
+                frames[i] = overlay_predictions(frames[i], preds)
+
+        if frames:
+            encode_video(frames, video_path)
+        else:
+            return JSONResponse({"error": "No frames recorded"}, status_code=409)
+
+    return FileResponse(
+        video_path,
+        media_type="video/mp4",
+        filename=f"vjepa2-{session_id}.mp4",
+    )
+
+
+async def _session_cleanup_loop():
+    """Periodically clean up expired sessions."""
+    interval = CONFIG.get("streaming", {}).get("cleanup_interval_seconds", 300)
+    ttl = CONFIG.get("streaming", {}).get("session_ttl_seconds", 1800)
+    while True:
+        await asyncio.sleep(interval)
+        now = time.monotonic()
+        expired = [
+            sid
+            for sid, s in _sessions.items()
+            if s.status in ("complete", "expired") and (now - s.created_at) > ttl
+        ]
+        for sid in expired:
+            _sessions[sid].cleanup()
+            del _sessions[sid]
+
+
+_static_dir = Path(__file__).parent.parent / "static"
+if _static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")

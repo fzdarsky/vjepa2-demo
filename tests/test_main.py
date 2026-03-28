@@ -174,3 +174,51 @@ def test_websocket_file_not_found(client, mock_vjepa2_model):
         ws.send_json({"source": "/samples/nonexistent.mp4"})
         msg = ws.receive_json()
         assert "error" in msg
+
+
+def test_browser_stream_rejects_when_model_not_ready():
+    """WebSocket /stream/browser should reject with error when model not loaded."""
+    from app.main import app
+
+    client = TestClient(app, raise_server_exceptions=False)
+    with client.websocket_connect("/v2/models/vjepa2/stream/browser") as ws:
+        data = ws.receive_json()
+        assert data["type"] == "error"
+
+
+def test_rtsp_stream_rejects_when_model_not_ready():
+    """WebSocket /stream/rtsp should reject with error when model not loaded."""
+    from app.main import app
+
+    client = TestClient(app, raise_server_exceptions=False)
+    with client.websocket_connect("/v2/models/vjepa2/stream/rtsp") as ws:
+        data = ws.receive_json()
+        assert data["type"] == "error"
+
+
+def test_session_video_not_found():
+    """GET /sessions/{id}/video should 404 for unknown session."""
+    from app.main import app
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/v2/models/vjepa2/sessions/nonexistent/video")
+    assert resp.status_code == 404
+
+
+def test_session_preview_not_found():
+    """GET /sessions/{id}/preview should 404 for unknown session."""
+    from app.main import app
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/v2/models/vjepa2/sessions/nonexistent/preview")
+    assert resp.status_code == 404
+
+
+def test_static_ui_served():
+    """GET / should serve the web UI."""
+    from app.main import app
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "V-JEPA2" in resp.text
