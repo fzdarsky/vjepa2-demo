@@ -1,8 +1,14 @@
 .git
 .venv
+.worktrees
 __pycache__
 *.pyc
 .pytest_cache
 docs/
 tests/
 *.md
+model/
+model-staging/
+model-vitg/
+output/
+samples/

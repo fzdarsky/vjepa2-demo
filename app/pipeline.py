@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image
 
 from app.schemas import Clip
-from app.telemetry import get_meter
+from app.telemetry import get_meter, get_tracer
 
 
 class FrameBuffer:
@@ -172,40 +172,61 @@ async def inference_worker(
     Stops when it receives None (sentinel) from the queue.
     """
     meter = get_meter()
+    tracer = get_tracer()
     frames_counter = meter.create_counter(
-        "vjepa2_frames_ingested_total",
-        description="Total frames received from all sources",
+        "vjepa2_frames_processed_total",
+        description="Total video frames decoded",
+    )
+    clips_counter = meter.create_counter(
+        "vjepa2_clips_processed_total",
+        description="Total clips inferred",
+    )
+    request_duration = meter.create_histogram(
+        "vjepa2_request_duration_seconds",
+        description="Per-clip inference duration",
+        unit="s",
     )
 
-    while True:
-        session._queue_depth.set(session.clip_queue.qsize())
-        clip = await session.clip_queue.get()
-        if clip is None:
-            session._queue_depth.set(0)
-            break
+    with tracer.start_as_current_span("stream_inference") as stream_span:
+        stream_span.set_attribute("session.id", session.session_id)
 
-        predictions = await asyncio.to_thread(
-            model.predict,
-            clip.frames,
-            top_k=session.top_k,
-            stride=session.buffer.stride,
-            source_fps=source_fps,
-        )
+        while True:
+            session._queue_depth.set(session.clip_queue.qsize())
+            clip = await session.clip_queue.get()
+            if clip is None:
+                session._queue_depth.set(0)
+                break
 
-        # Generate thumbnail from middle frame
-        mid = len(clip.frames) // 2
-        thumbnail = _frame_to_thumbnail(clip.frames[mid], width=thumbnail_width)
+            clip_start = time.monotonic()
+            with tracer.start_as_current_span("clip_inference") as clip_span:
+                clip_span.set_attribute("clip.index", session._clip_index)
+                clip_span.set_attribute("clip.start_frame", clip.start_frame)
+                clip_span.set_attribute("clip.end_frame", clip.end_frame)
 
-        result = {
-            "type": "prediction",
-            "clip_index": session._clip_index,
-            "timestamp_ms": int(clip.start_frame * 1000 / source_fps),
-            "frame_range": [clip.start_frame, clip.end_frame],
-            "thumbnail": thumbnail,
-            "predictions": [p.model_dump() for p in predictions],
-        }
-        session._clip_index += 1
-        session.append_result(result)
-        frames_counter.add(clip.end_frame - clip.start_frame)
+                predictions = await asyncio.to_thread(
+                    model.predict,
+                    clip.frames,
+                    top_k=session.top_k,
+                    stride=session.buffer.stride,
+                    source_fps=source_fps,
+                )
 
-        await on_result(result)
+            # Generate thumbnail from middle frame
+            mid = len(clip.frames) // 2
+            thumbnail = _frame_to_thumbnail(clip.frames[mid], width=thumbnail_width)
+
+            result = {
+                "type": "prediction",
+                "clip_index": session._clip_index,
+                "timestamp_ms": int(clip.start_frame * 1000 / source_fps),
+                "frame_range": [clip.start_frame, clip.end_frame],
+                "thumbnail": thumbnail,
+                "predictions": [p.model_dump() for p in predictions],
+            }
+            session._clip_index += 1
+            session.append_result(result)
+            frames_counter.add(clip.end_frame - clip.start_frame)
+            clips_counter.add(1)
+            request_duration.record(time.monotonic() - clip_start)
+
+            await on_result(result)

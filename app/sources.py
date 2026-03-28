@@ -74,7 +74,7 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None)
 
     def _decode_stream():
         try:
-            container = av.open(stream_buf, format="matroska")
+            container = av.open(stream_buf)
             for frame in container.decode(video=0):
                 arr = frame.to_ndarray(format="rgb24")
                 asyncio.run_coroutine_threadsafe(

@@ -286,10 +286,19 @@ async def stream_browser(websocket: WebSocket):
         await websocket.send_json(ErrorMessage(message="Model not ready").model_dump())
         await websocket.close(code=1013)
         return
+
+    meter = get_meter()
+    active_connections = meter.create_up_down_counter(
+        "vjepa2_active_connections",
+        description="Current WebSocket connections",
+    )
+    active_connections.add(1)
+
     try:
         raw = await websocket.receive_json()
         config = BrowserStreamConfig(**raw)
     except Exception as e:
+        active_connections.add(-1)
         await websocket.send_json(
             ErrorMessage(message=f"Invalid config: {e}").model_dump()
         )
@@ -297,6 +306,7 @@ async def stream_browser(websocket: WebSocket):
         return
     max_sessions = CONFIG.get("streaming", {}).get("max_concurrent_sessions", 10)
     if len(_sessions) >= max_sessions:
+        active_connections.add(-1)
         await websocket.send_json(
             ErrorMessage(message="Too many concurrent sessions").model_dump()
         )
@@ -329,8 +339,10 @@ async def stream_browser(websocket: WebSocket):
         await websocket.send_json(ErrorMessage(message=str(e)).model_dump())
         await session.clip_queue.put(None)
         await worker_task
+        active_connections.add(-1)
         await websocket.close(code=1011)
         return
+    active_connections.add(-1)
     session.complete()
     await websocket.send_json(
         CompleteMessage(
@@ -349,10 +361,19 @@ async def stream_rtsp(websocket: WebSocket):
         await websocket.send_json(ErrorMessage(message="Model not ready").model_dump())
         await websocket.close(code=1013)
         return
+
+    meter = get_meter()
+    active_connections = meter.create_up_down_counter(
+        "vjepa2_active_connections",
+        description="Current WebSocket connections",
+    )
+    active_connections.add(1)
+
     try:
         raw = await websocket.receive_json()
         config = RtspStreamConfig(**raw)
     except Exception as e:
+        active_connections.add(-1)
         await websocket.send_json(
             ErrorMessage(message=f"Invalid config: {e}").model_dump()
         )
@@ -360,6 +381,7 @@ async def stream_rtsp(websocket: WebSocket):
         return
     max_sessions = CONFIG.get("streaming", {}).get("max_concurrent_sessions", 10)
     if len(_sessions) >= max_sessions:
+        active_connections.add(-1)
         await websocket.send_json(
             ErrorMessage(message="Too many concurrent sessions").model_dump()
         )
@@ -401,10 +423,12 @@ async def stream_rtsp(websocket: WebSocket):
         )
         await session.clip_queue.put(None)
         await worker_task
+        active_connections.add(-1)
         await websocket.close(code=1011)
         stop_task.cancel()
         return
     stop_task.cancel()
+    active_connections.add(-1)
     session.complete()
     await websocket.send_json(
         CompleteMessage(
