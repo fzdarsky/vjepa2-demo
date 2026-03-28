@@ -164,6 +164,7 @@ async def inference_worker(
     model,
     on_result: Callable[[dict], Awaitable[None]],
     source_fps: float = 30.0,
+    thumbnail_width: int = 160,
 ) -> None:
     """Pull clips from session queue and run inference.
 
@@ -176,8 +177,10 @@ async def inference_worker(
     )
 
     while True:
+        session._queue_depth.set(session.clip_queue.qsize())
         clip = await session.clip_queue.get()
         if clip is None:
+            session._queue_depth.set(0)
             break
 
         predictions = await asyncio.to_thread(
@@ -190,7 +193,7 @@ async def inference_worker(
 
         # Generate thumbnail from middle frame
         mid = len(clip.frames) // 2
-        thumbnail = _frame_to_thumbnail(clip.frames[mid])
+        thumbnail = _frame_to_thumbnail(clip.frames[mid], width=thumbnail_width)
 
         result = {
             "type": "prediction",

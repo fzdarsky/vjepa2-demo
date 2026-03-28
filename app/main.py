@@ -295,6 +295,13 @@ async def stream_browser(websocket: WebSocket):
         )
         await websocket.close(code=1008)
         return
+    max_sessions = CONFIG.get("streaming", {}).get("max_concurrent_sessions", 10)
+    if len(_sessions) >= max_sessions:
+        await websocket.send_json(
+            ErrorMessage(message="Too many concurrent sessions").model_dump()
+        )
+        await websocket.close(code=1013)
+        return
     session = StreamSession(
         num_frames=config.num_frames, stride=config.stride, top_k=config.top_k
     )
@@ -306,7 +313,8 @@ async def stream_browser(websocket: WebSocket):
     async def on_result(result):
         await websocket.send_json(result)
 
-    worker_task = asyncio.create_task(inference_worker(session, _model, on_result))
+    thumb_w = CONFIG.get("streaming", {}).get("thumbnail_width", 160)
+    worker_task = asyncio.create_task(inference_worker(session, _model, on_result, thumbnail_width=thumb_w))
     try:
         await browser_source(websocket, session)
         await worker_task
@@ -320,7 +328,7 @@ async def stream_browser(websocket: WebSocket):
         await worker_task
         await websocket.close(code=1011)
         return
-    session.status = "complete"
+    session.complete()
     await websocket.send_json(
         CompleteMessage(
             session_id=session.session_id,
@@ -347,6 +355,13 @@ async def stream_rtsp(websocket: WebSocket):
         )
         await websocket.close(code=1008)
         return
+    max_sessions = CONFIG.get("streaming", {}).get("max_concurrent_sessions", 10)
+    if len(_sessions) >= max_sessions:
+        await websocket.send_json(
+            ErrorMessage(message="Too many concurrent sessions").model_dump()
+        )
+        await websocket.close(code=1013)
+        return
     session = StreamSession(
         num_frames=config.num_frames, stride=config.stride, top_k=config.top_k
     )
@@ -359,7 +374,8 @@ async def stream_rtsp(websocket: WebSocket):
     async def on_result(result):
         await websocket.send_json(result)
 
-    worker_task = asyncio.create_task(inference_worker(session, _model, on_result))
+    thumb_w = CONFIG.get("streaming", {}).get("thumbnail_width", 160)
+    worker_task = asyncio.create_task(inference_worker(session, _model, on_result, thumbnail_width=thumb_w))
 
     async def wait_for_stop():
         try:
@@ -386,7 +402,7 @@ async def stream_rtsp(websocket: WebSocket):
         stop_task.cancel()
         return
     stop_task.cancel()
-    session.status = "complete"
+    session.complete()
     await websocket.send_json(
         CompleteMessage(
             session_id=session.session_id,
