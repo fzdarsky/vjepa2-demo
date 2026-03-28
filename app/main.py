@@ -20,7 +20,7 @@ from app.schemas import (
     StreamConfig,
     StreamPrediction,
 )
-from app.telemetry import get_meter, init_telemetry, instrument_fastapi
+from app.telemetry import get_meter, get_tracer, init_telemetry, instrument_fastapi
 from app.video import decode_video, iter_clips
 
 # Load config
@@ -123,21 +123,24 @@ async def infer(
         tmp.write(content)
         tmp_path = tmp.name
 
+    tracer = get_tracer()
     try:
         if stride is not None:
             clips_results = []
-            for clip in iter_clips(tmp_path, num_frames=num_frames, stride=stride):
-                predictions = _model.predict(
-                    clip.frames, top_k=top_k, stride=stride
-                )
-                frames_total.add(clip.end_frame - clip.start_frame)
-                clips_results.append({
-                    "clip_index": len(clips_results),
-                    "start_frame": clip.start_frame,
-                    "end_frame": clip.end_frame,
-                    "partial": (clip.end_frame - clip.start_frame) < num_frames,
-                    "predictions": [p.model_dump() for p in predictions],
-                })
+            with tracer.start_as_current_span("video_inference"):
+                for clip in iter_clips(tmp_path, num_frames=num_frames, stride=stride):
+                    with tracer.start_as_current_span("clip_inference"):
+                        predictions = _model.predict(
+                            clip.frames, top_k=top_k, stride=stride
+                        )
+                    frames_total.add(clip.end_frame - clip.start_frame)
+                    clips_results.append({
+                        "clip_index": len(clips_results),
+                        "start_frame": clip.start_frame,
+                        "end_frame": clip.end_frame,
+                        "partial": (clip.end_frame - clip.start_frame) < num_frames,
+                        "predictions": [p.model_dump() for p in predictions],
+                    })
             requests_total.add(1, {"endpoint": "/infer", "status": "200"})
             request_duration.record(time.monotonic() - request_start)
             return {
@@ -147,8 +150,10 @@ async def infer(
                 "clips": clips_results,
             }
         else:
-            frames = decode_video(tmp_path, num_frames=num_frames)
-            predictions = _model.predict(frames, top_k=top_k)
+            with tracer.start_as_current_span("video_inference"):
+                with tracer.start_as_current_span("clip_inference"):
+                    frames = decode_video(tmp_path, num_frames=num_frames)
+                    predictions = _model.predict(frames, top_k=top_k)
             frames_total.add(num_frames)
             requests_total.add(1, {"endpoint": "/infer", "status": "200"})
             request_duration.record(time.monotonic() - request_start)
@@ -228,18 +233,21 @@ async def stream(websocket: WebSocket):
         return
 
     frames_processed = 0
+    tracer = get_tracer()
     try:
-        for clip in iter_clips(source_path, config.num_frames, config.stride):
-            predictions = _model.predict(
-                clip.frames, top_k=config.top_k, stride=config.stride
-            )
-            msg = StreamPrediction(
-                timestamp_ms=int(clip.start_frame * 1000 / 30),
-                frame_range=[clip.start_frame, clip.end_frame],
-                predictions=predictions,
-            )
-            await websocket.send_json(msg.model_dump())
-            frames_processed = clip.end_frame
+        with tracer.start_as_current_span("video_inference"):
+            for clip in iter_clips(source_path, config.num_frames, config.stride):
+                with tracer.start_as_current_span("clip_inference"):
+                    predictions = _model.predict(
+                        clip.frames, top_k=config.top_k, stride=config.stride
+                    )
+                msg = StreamPrediction(
+                    timestamp_ms=int(clip.start_frame * 1000 / 30),
+                    frame_range=[clip.start_frame, clip.end_frame],
+                    predictions=predictions,
+                )
+                await websocket.send_json(msg.model_dump())
+                frames_processed = clip.end_frame
     except WebSocketDisconnect:
         active_connections.add(-1)
         return

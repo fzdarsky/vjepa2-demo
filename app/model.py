@@ -100,8 +100,9 @@ class VJepa2Model:
         self._clip_duration.record(clip_duration)
         self._clips_total.add(1)
 
-        if stride is not None and source_fps > 0:
-            rt_threshold = stride / source_fps
+        effective_stride = stride if stride is not None else len(frames)
+        if source_fps > 0:
+            rt_threshold = effective_stride / source_fps
             if clip_duration > rt_threshold:
                 self._rt_violations.add(1)
 

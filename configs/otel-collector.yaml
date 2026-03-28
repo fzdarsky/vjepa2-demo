@@ -18,10 +18,13 @@ receivers:
     scrapers:
       cpu: {}
       memory: {}
-      process:
-        include:
-          match_type: strict
-          names: ["python"]
+
+connectors:
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [10, 50, 100, 500, 1000, 2000, 5000, 10000]
+    metrics_flush_interval: 5s
 
 processors:
   batch:
@@ -41,10 +44,10 @@ exporters:
 service:
   pipelines:
     metrics:
-      receivers: [otlp, prometheus/dcgm, hostmetrics]
+      receivers: [otlp, prometheus/dcgm, hostmetrics, spanmetrics]
       processors: [batch]
       exporters: [prometheus]
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp/jaeger]
+      exporters: [otlp/jaeger, spanmetrics]
