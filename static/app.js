@@ -3,6 +3,7 @@ function vjepa2App() {
     tab: 'upload',
     modelReady: false,
     streaming: false,
+    recording: false,
     sessionId: null,
     results: [],
     dragover: false,
@@ -15,6 +16,9 @@ function vjepa2App() {
     ws: null,
     mediaRecorder: null,
     cameraStream: null,
+    recordingSeconds: 0,
+    totalClips: 0,
+    _recordingTimer: null,
 
     get previewUrl() {
       if (this.sessionId) {
@@ -67,6 +71,8 @@ function vjepa2App() {
     async start() {
       this.results = [];
       this.sessionId = null;
+      this.totalClips = 0;
+      this.recordingSeconds = 0;
       if (this.tab === 'upload') {
         await this.startUpload();
       } else if (this.tab === 'camera') {
@@ -79,12 +85,14 @@ function vjepa2App() {
     stop() {
       if (this.tab === 'camera' && this.mediaRecorder) {
         this.mediaRecorder.stop();
-      }
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // onstop handler will send the stop action after final data
+      } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ action: 'stop' }));
       }
-      this.streaming = false;
+      this.recording = false;
+      this._stopRecordingTimer();
       this.stopCamera();
+      // streaming stays true until server sends 'complete'
     },
 
     connectWs(path) {
@@ -94,6 +102,8 @@ function vjepa2App() {
         const msg = JSON.parse(event.data);
         if (msg.type === 'session') {
           this.sessionId = msg.session_id;
+        } else if (msg.type === 'progress') {
+          this.totalClips = msg.clips_queued;
         } else if (msg.type === 'prediction') {
           this.results.push(msg);
           this.$nextTick(() => {
@@ -102,15 +112,21 @@ function vjepa2App() {
           });
         } else if (msg.type === 'complete') {
           this.streaming = false;
+          this.recording = false;
+          this._stopRecordingTimer();
           this.stopCamera();
         } else if (msg.type === 'error') {
           console.error('Server error:', msg.message);
           this.streaming = false;
+          this.recording = false;
+          this._stopRecordingTimer();
           this.stopCamera();
         }
       };
       this.ws.onclose = () => {
         this.streaming = false;
+        this.recording = false;
+        this._stopRecordingTimer();
         this.stopCamera();
       };
       return new Promise((resolve, reject) => {
@@ -128,9 +144,11 @@ function vjepa2App() {
         stride: this.stride,
       }));
       this.streaming = true;
+      this.recording = true;
       const buffer = await this.selectedFile.arrayBuffer();
       this.ws.send(buffer);
       this.ws.send(JSON.stringify({ action: 'stop' }));
+      this.recording = false;
     },
 
     async startCamera() {
@@ -154,20 +172,20 @@ function vjepa2App() {
         stride: this.stride,
       }));
       this.streaming = true;
+      this.recording = true;
+      this.recordingSeconds = 0;
+      this._startRecordingTimer();
       this.mediaRecorder = new MediaRecorder(this.cameraStream, {
         mimeType: 'video/webm;codecs=vp8',
       });
-      const chunks = [];
-      this.mediaRecorder.ondataavailable = (event) => {
+      this.mediaRecorder.ondataavailable = async (event) => {
         if (event.data.size > 0 && this.ws.readyState === WebSocket.OPEN) {
-          chunks.push(event.data);
+          const buffer = await event.data.arrayBuffer();
+          this.ws.send(buffer);
         }
       };
-      this.mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const buffer = await blob.arrayBuffer();
-        if (this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(buffer);
+      this.mediaRecorder.onstop = () => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({ action: 'stop' }));
         }
       };
@@ -184,6 +202,9 @@ function vjepa2App() {
         stride: this.stride,
       }));
       this.streaming = true;
+      this.recording = true;
+      this.recordingSeconds = 0;
+      this._startRecordingTimer();
     },
 
     stopCamera() {
@@ -191,6 +212,25 @@ function vjepa2App() {
         this.cameraStream.getTracks().forEach(t => t.stop());
         this.cameraStream = null;
       }
+    },
+
+    _startRecordingTimer() {
+      this._recordingTimer = setInterval(() => {
+        this.recordingSeconds++;
+      }, 1000);
+    },
+
+    _stopRecordingTimer() {
+      if (this._recordingTimer) {
+        clearInterval(this._recordingTimer);
+        this._recordingTimer = null;
+      }
+    },
+
+    formatDuration(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
     },
   };
 }

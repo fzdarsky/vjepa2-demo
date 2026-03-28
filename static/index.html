@@ -23,7 +23,10 @@
     </nav>
     <main class="panels">
       <section class="input-panel">
-        <div class="panel-label">Input</div>
+        <div class="panel-label-row">
+          <div class="panel-label">Input</div>
+          <div x-show="recordingSeconds > 0" class="panel-label" x-text="formatDuration(recordingSeconds)"></div>
+        </div>
         <template x-if="tab === 'upload'">
           <div>
             <div class="dropzone" @dragover.prevent="dragover = true" @dragleave="dragover = false" @drop.prevent="handleDrop($event)" :class="{ 'dragover': dragover }">
@@ -53,7 +56,7 @@
           <button class="btn primary" @click="start()" :disabled="streaming">
             <span x-text="tab === 'rtsp' ? 'Connect' : 'Start'"></span>
           </button>
-          <button class="btn" @click="stop()" :disabled="!streaming">
+          <button class="btn" @click="stop()" :disabled="!recording">
             <span x-text="tab === 'rtsp' ? 'Disconnect' : 'Stop'"></span>
           </button>
         </div>
@@ -66,7 +69,7 @@
       <section class="results-panel">
         <div class="results-header">
           <div class="panel-label">Results</div>
-          <div class="clip-count" x-text="results.length + ' clips processed'"></div>
+          <div class="clip-count" x-text="totalClips > 0 ? results.length + ' out of ' + totalClips + ' clips processed' : results.length + ' clips processed'"></div>
         </div>
         <div class="results-list">
           <template x-for="(r, i) in results" :key="i">

@@ -101,6 +101,7 @@ class StreamSession:
         self.created_at = time.monotonic()
         self._clip_index = 0
         self._frame_index = 0
+        self.clips_queued = 0
         self._latest_frame: np.ndarray | None = None
 
         # Create temp directory

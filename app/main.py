@@ -313,10 +313,13 @@ async def stream_browser(websocket: WebSocket):
     async def on_result(result):
         await websocket.send_json(result)
 
+    async def on_clip_queued(total):
+        await websocket.send_json({"type": "progress", "clips_queued": total})
+
     thumb_w = CONFIG.get("streaming", {}).get("thumbnail_width", 160)
     worker_task = asyncio.create_task(inference_worker(session, _model, on_result, thumbnail_width=thumb_w))
     try:
-        await browser_source(websocket, session)
+        await browser_source(websocket, session, on_clip_queued=on_clip_queued)
         await worker_task
     except WebSocketDisconnect:
         session.status = "processing"
