@@ -1,3 +1,106 @@
 <!DOCTYPE html>
-<html><head><title>V-JEPA2 Action Recognition</title></head>
-<body><h1>V-JEPA2</h1></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>V-JEPA2 Action Recognition</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+  <div x-data="vjepa2App()" class="app">
+    <header class="topbar">
+      <h1>V-JEPA2 Action Recognition</h1>
+      <div class="status">
+        <span class="status-dot" :class="modelReady ? 'ready' : 'loading'"></span>
+        <span x-text="modelReady ? 'Model ready' : 'Loading...'"></span>
+      </div>
+    </header>
+    <nav class="tabs">
+      <button :class="{ active: tab === 'upload' }" @click="tab = 'upload'">Upload Video</button>
+      <button :class="{ active: tab === 'camera' }" @click="tab = 'camera'">Record Camera</button>
+      <button :class="{ active: tab === 'rtsp' }" @click="tab = 'rtsp'">RTSP Stream</button>
+    </nav>
+    <main class="panels">
+      <section class="input-panel">
+        <div class="panel-label">Input</div>
+        <template x-if="tab === 'upload'">
+          <div>
+            <div class="dropzone" @dragover.prevent="dragover = true" @dragleave="dragover = false" @drop.prevent="handleDrop($event)" :class="{ 'dragover': dragover }">
+              <input type="file" accept="video/*" @change="handleFileSelect($event)" style="display:none" x-ref="fileInput">
+              <div @click="$refs.fileInput.click()" style="cursor:pointer; text-align:center; padding: 32px;">
+                <div style="font-size: 32px;">&#128193;</div>
+                <div>Drop video file here</div>
+                <div class="hint">or click to browse</div>
+              </div>
+            </div>
+            <video x-show="videoUrl" :src="videoUrl" controls class="preview"></video>
+          </div>
+        </template>
+        <template x-if="tab === 'camera'">
+          <div>
+            <video x-ref="cameraPreview" autoplay muted playsinline class="preview"></video>
+          </div>
+        </template>
+        <template x-if="tab === 'rtsp'">
+          <div>
+            <input type="text" x-model="rtspUrl" placeholder="rtsp://192.168.1.1:7447/stream" class="rtsp-input">
+            <img x-show="sessionId && streaming" :src="previewUrl" class="preview" alt="RTSP preview">
+            <div x-show="!sessionId || !streaming" class="preview placeholder">RTSP camera preview</div>
+          </div>
+        </template>
+        <div class="controls">
+          <button class="btn primary" @click="start()" :disabled="streaming">
+            <span x-text="tab === 'rtsp' ? 'Connect' : 'Start'"></span>
+          </button>
+          <button class="btn" @click="stop()" :disabled="!streaming">
+            <span x-text="tab === 'rtsp' ? 'Disconnect' : 'Stop'"></span>
+          </button>
+        </div>
+        <div class="config">
+          <label>top_k: <input type="number" x-model.number="topK" min="1" max="20" :disabled="streaming"></label>
+          <label>frames: <input type="number" x-model.number="numFrames" min="4" max="64" :disabled="streaming"></label>
+          <label>stride: <input type="number" x-model.number="stride" min="1" max="32" :disabled="streaming"></label>
+        </div>
+      </section>
+      <section class="results-panel">
+        <div class="results-header">
+          <div class="panel-label">Results</div>
+          <div class="clip-count" x-text="results.length + ' clips processed'"></div>
+        </div>
+        <div class="results-list">
+          <template x-for="(r, i) in results" :key="i">
+            <div class="result-item">
+              <img :src="'data:image/jpeg;base64,' + r.thumbnail" class="thumbnail" alt="clip thumbnail">
+              <div class="result-content">
+                <div class="result-time">
+                  <span x-text="formatTime(r.timestamp_ms)"></span> &mdash;
+                  <span x-text="formatTime(r.timestamp_ms + (numFrames / 30 * 1000))"></span>
+                  <span class="frame-range" x-text="'frames ' + r.frame_range[0] + '\u2013' + r.frame_range[1]"></span>
+                </div>
+                <template x-for="(p, j) in r.predictions" :key="j">
+                  <div class="prediction" :class="{ top: j === 0 }">
+                    <span x-text="p.label"></span>
+                    <span x-text="p.score.toFixed(3)"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div x-show="streaming" class="result-item processing">
+            <div class="thumbnail placeholder-thumb">&#9203;</div>
+            <div class="result-content">
+              <span class="processing-text">Processing clip <span x-text="results.length + 1"></span>...</span>
+            </div>
+          </div>
+        </div>
+        <div class="download-section">
+          <a x-show="sessionId && !streaming && results.length > 0" :href="'/v2/models/vjepa2/sessions/' + sessionId + '/video'" class="btn download" download>&#11015; Download Annotated Video</a>
+          <div x-show="!sessionId || streaming || results.length === 0" class="btn download disabled">&#11015; Download Annotated Video (available after session)</div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
