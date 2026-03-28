@@ -108,6 +108,22 @@ class StreamSession:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         (self.temp_dir / "frames").mkdir(exist_ok=True)
 
+        meter = get_meter()
+        self._active_gauge = meter.create_up_down_counter(
+            "vjepa2_active_sessions",
+            description="Number of active streaming sessions",
+        )
+        self._active_gauge.add(1)
+        self._duration_hist = meter.create_histogram(
+            "vjepa2_session_duration_seconds",
+            description="Total session duration",
+            unit="s",
+        )
+        self._queue_depth = meter.create_gauge(
+            "vjepa2_queue_depth",
+            description="Current clip queue depth",
+        )
+
     def save_frame(self, frame: np.ndarray, index: int) -> None:
         """Save a frame to disk as JPEG for later video annotation."""
         img = Image.fromarray(frame)
@@ -119,6 +135,12 @@ class StreamSession:
         self.results.append(result)
         with open(self.temp_dir / "results.jsonl", "a") as f:
             f.write(json.dumps(result) + "\n")
+
+    def complete(self) -> None:
+        """Mark session as complete and record metrics."""
+        self.status = "complete"
+        self._active_gauge.add(-1)
+        self._duration_hist.record(time.monotonic() - self.created_at)
 
     def cleanup(self) -> None:
         """Remove session temp directory."""

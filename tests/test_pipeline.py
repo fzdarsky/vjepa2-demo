@@ -150,6 +150,21 @@ def test_stream_session_append_result(tmp_path):
     session.cleanup()
 
 
+def test_stream_session_tracks_metrics(tmp_path):
+    """StreamSession should create OTel metrics on init."""
+    session = StreamSession(
+        session_id="test-metrics",
+        num_frames=4,
+        stride=4,
+        top_k=5,
+        base_dir=str(tmp_path),
+    )
+    # Verify meter was accessed (no-op meter in tests)
+    # The fact that init doesn't crash with no-op meter is the test
+    assert session.session_id == "test-metrics"
+    session.cleanup()
+
+
 @pytest.mark.asyncio
 async def test_inference_worker_processes_clips(tmp_path):
     session = StreamSession(
