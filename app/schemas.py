@@ -65,3 +65,54 @@ class StreamPrediction(BaseModel):
 class StreamComplete(BaseModel):
     status: str
     frames_processed: int
+
+
+class BrowserStreamConfig(BaseModel):
+    top_k: int = 5
+    num_frames: int = 16
+    stride: int = 8
+
+
+class RtspStreamConfig(BaseModel):
+    rtsp_url: str
+    top_k: int = 5
+    num_frames: int = 16
+    stride: int = 8
+
+    @field_validator("rtsp_url")
+    @classmethod
+    def validate_rtsp_url(cls, v: str) -> str:
+        if not v.startswith("rtsp://"):
+            raise ValueError("URL must start with rtsp://")
+        return v
+
+
+class StreamAction(BaseModel):
+    action: str  # "stop"
+
+
+class PredictionMessage(BaseModel):
+    type: str = "prediction"
+    clip_index: int
+    timestamp_ms: int
+    frame_range: list[int]
+    thumbnail: str  # base64 JPEG
+    predictions: list[Prediction]
+
+
+class SessionMessage(BaseModel):
+    type: str = "session"
+    session_id: str
+    status: str
+
+
+class CompleteMessage(BaseModel):
+    type: str = "complete"
+    session_id: str
+    clips_processed: int
+    video_ready: bool
+
+
+class ErrorMessage(BaseModel):
+    type: str = "error"
+    message: str

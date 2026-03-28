@@ -8,6 +8,13 @@ from app.schemas import (
     StreamPrediction,
     StreamComplete,
     Clip,
+    BrowserStreamConfig,
+    RtspStreamConfig,
+    StreamAction,
+    PredictionMessage,
+    SessionMessage,
+    CompleteMessage,
+    ErrorMessage,
 )
 import numpy as np
 
@@ -96,3 +103,64 @@ def test_clip_partial_detection():
     assert partial.end_frame - partial.start_frame < frames.shape[0]
     full = Clip(frames=frames, start_frame=0, end_frame=16)
     assert full.end_frame - full.start_frame == frames.shape[0]
+
+
+# --- New streaming schemas tests ---
+
+
+def test_browser_stream_config_defaults():
+    config = BrowserStreamConfig()
+    assert config.top_k == 5
+    assert config.num_frames == 16
+    assert config.stride == 8
+
+
+def test_browser_stream_config_custom():
+    config = BrowserStreamConfig(top_k=3, num_frames=32, stride=16)
+    assert config.top_k == 3
+    assert config.num_frames == 32
+    assert config.stride == 16
+
+
+def test_rtsp_stream_config_valid():
+    config = RtspStreamConfig(rtsp_url="rtsp://192.168.1.1:7447/stream")
+    assert config.rtsp_url == "rtsp://192.168.1.1:7447/stream"
+    assert config.top_k == 5
+
+
+def test_rtsp_stream_config_rejects_non_rtsp():
+    with pytest.raises(ValueError, match="must start with rtsp://"):
+        RtspStreamConfig(rtsp_url="http://example.com/stream")
+
+
+def test_stream_action_stop():
+    action = StreamAction(action="stop")
+    assert action.action == "stop"
+
+
+def test_prediction_message():
+    msg = PredictionMessage(
+        clip_index=0,
+        timestamp_ms=500,
+        frame_range=[0, 16],
+        thumbnail="base64data",
+        predictions=[Prediction(label="Pushing", score=0.5)],
+    )
+    assert msg.type == "prediction"
+    assert msg.clip_index == 0
+    assert msg.thumbnail == "base64data"
+
+
+def test_session_message():
+    msg = SessionMessage(session_id="abc123", status="ready")
+    assert msg.type == "session"
+
+
+def test_complete_message():
+    msg = CompleteMessage(session_id="abc123", clips_processed=12, video_ready=True)
+    assert msg.type == "complete"
+
+
+def test_error_message():
+    msg = ErrorMessage(message="Something failed")
+    assert msg.type == "error"
