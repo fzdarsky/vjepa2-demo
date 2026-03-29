@@ -3,6 +3,11 @@ from dataclasses import dataclass
 import numpy as np
 from pydantic import BaseModel, Field, field_validator
 
+# Inference defaults — single source of truth
+DEFAULT_NUM_FRAMES = 16
+DEFAULT_STRIDE = 16
+DEFAULT_TOP_K = 3
+
 
 @dataclass
 class Clip:
@@ -44,9 +49,9 @@ class ModelMetadata(BaseModel):
 
 class StreamConfig(BaseModel):
     source: str
-    top_k: int = 5
-    num_frames: int = 16
-    stride: int = 8
+    top_k: int = DEFAULT_TOP_K
+    num_frames: int = DEFAULT_NUM_FRAMES
+    stride: int = DEFAULT_STRIDE
 
     @field_validator("source")
     @classmethod
@@ -68,16 +73,16 @@ class StreamComplete(BaseModel):
 
 
 class BrowserStreamConfig(BaseModel):
-    top_k: int = 5
-    num_frames: int = 16
-    stride: int = 8
+    top_k: int = DEFAULT_TOP_K
+    num_frames: int = DEFAULT_NUM_FRAMES
+    stride: int = DEFAULT_STRIDE
 
 
 class RtspStreamConfig(BaseModel):
     rtsp_url: str
-    top_k: int = 5
-    num_frames: int = 16
-    stride: int = 8
+    top_k: int = DEFAULT_TOP_K
+    num_frames: int = DEFAULT_NUM_FRAMES
+    stride: int = DEFAULT_STRIDE
 
     @field_validator("rtsp_url")
     @classmethod

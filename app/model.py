@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from transformers import AutoModelForVideoClassification, AutoVideoProcessor
 
-from app.schemas import Prediction
+from app.schemas import DEFAULT_TOP_K, Prediction
 from app.telemetry import get_meter, get_tracer
 
 
@@ -53,7 +53,7 @@ class VJepa2Model:
     def predict(
         self,
         frames: np.ndarray,
-        top_k: int = 5,
+        top_k: int = DEFAULT_TOP_K,
         stride: int | None = None,
         source_fps: float = 30.0,
     ) -> list[Prediction]:

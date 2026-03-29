@@ -65,9 +65,9 @@ def test_model_metadata():
 
 def test_stream_config_defaults():
     cfg = StreamConfig(source="/samples/video.mp4")
-    assert cfg.top_k == 5
+    assert cfg.top_k == 3
     assert cfg.num_frames == 16
-    assert cfg.stride == 8
+    assert cfg.stride == 16
 
 
 def test_stream_config_rejects_path_traversal():
@@ -110,22 +110,22 @@ def test_clip_partial_detection():
 
 def test_browser_stream_config_defaults():
     config = BrowserStreamConfig()
-    assert config.top_k == 5
+    assert config.top_k == 3
     assert config.num_frames == 16
-    assert config.stride == 8
+    assert config.stride == 16
 
 
 def test_browser_stream_config_custom():
-    config = BrowserStreamConfig(top_k=3, num_frames=32, stride=16)
-    assert config.top_k == 3
+    config = BrowserStreamConfig(top_k=5, num_frames=32, stride=8)
+    assert config.top_k == 5
     assert config.num_frames == 32
-    assert config.stride == 16
+    assert config.stride == 8
 
 
 def test_rtsp_stream_config_valid():
     config = RtspStreamConfig(rtsp_url="rtsp://192.168.1.1:7447/stream")
     assert config.rtsp_url == "rtsp://192.168.1.1:7447/stream"
-    assert config.top_k == 5
+    assert config.top_k == 3
 
 
 def test_rtsp_stream_config_rejects_non_rtsp():

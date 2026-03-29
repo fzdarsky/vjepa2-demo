@@ -7,7 +7,7 @@ model:
 inference:
   num_frames: 16
   resolution: 256
-  default_top_k: 5
+  default_top_k: 3
 
 server:
   host: 0.0.0.0

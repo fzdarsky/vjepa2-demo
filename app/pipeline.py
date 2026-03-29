@@ -12,7 +12,7 @@ from typing import Callable, Awaitable
 import numpy as np
 from PIL import Image
 
-from app.schemas import Clip
+from app.schemas import Clip, DEFAULT_NUM_FRAMES, DEFAULT_STRIDE, DEFAULT_TOP_K
 from app.telemetry import get_meter, get_tracer
 
 
@@ -23,7 +23,7 @@ class FrameBuffer:
     by stride frames. Trims consumed frames to bound memory.
     """
 
-    def __init__(self, num_frames: int = 16, stride: int = 8):
+    def __init__(self, num_frames: int = DEFAULT_NUM_FRAMES, stride: int = DEFAULT_STRIDE):
         self.num_frames = num_frames
         self.stride = stride
         self._frames: list[np.ndarray] = []
@@ -87,9 +87,9 @@ class StreamSession:
     def __init__(
         self,
         session_id: str | None = None,
-        num_frames: int = 16,
-        stride: int = 8,
-        top_k: int = 5,
+        num_frames: int = DEFAULT_NUM_FRAMES,
+        stride: int = DEFAULT_STRIDE,
+        top_k: int = DEFAULT_TOP_K,
         base_dir: str = "/tmp/vjepa2-sessions",
     ):
         self.session_id = session_id or uuid.uuid4().hex[:12]

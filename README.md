@@ -54,6 +54,11 @@ Open http://localhost:8080. Three input modes are available:
 - **Camera** — record from your browser camera with inference running while you record
 - **RTSP** — connect to an RTSP stream (e.g. `rtsp://192.168.1.x/...`) for continuous inference
 
+The sidebar lets you tune inference parameters:
+
+- **top_k** — number of predictions per clip (default: 3)
+- **stride** — how many frames to advance between clips (default: 16, i.e. non-overlapping). Lower values produce overlapping clips for smoother results at the cost of more computation.
+
 Results stream in as clips are processed. Each result shows a thumbnail and top-k action predictions with confidence scores. Camera mode shows a recording timer and progress indicator.
 
 After a session completes, click **Download** to get an annotated MP4 with predictions overlaid on each frame.

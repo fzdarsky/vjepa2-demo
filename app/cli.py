@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 
 
+from app.schemas import DEFAULT_NUM_FRAMES, DEFAULT_STRIDE, DEFAULT_TOP_K
+
 DEFAULT_INPUT_DIR = "/input"
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 
@@ -145,8 +147,8 @@ def main():
     infer_parser = subparsers.add_parser("infer", help="Run inference on video files")
     infer_parser.add_argument("files", nargs="*", help="Video file paths (default: scan /input/)")
     infer_parser.add_argument("--stride", type=int, default=None)
-    infer_parser.add_argument("--num-frames", type=int, default=16)
-    infer_parser.add_argument("--top-k", type=int, default=5)
+    infer_parser.add_argument("--num-frames", type=int, default=DEFAULT_NUM_FRAMES)
+    infer_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     infer_parser.add_argument("--save-frames", action="store_true")
     infer_parser.add_argument("--output", default="/output")
     infer_parser.add_argument("--format", choices=["text", "json", "jsonl"], default="text")
