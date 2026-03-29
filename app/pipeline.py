@@ -177,15 +177,6 @@ async def inference_worker(
         "vjepa2_frames_processed_total",
         description="Total video frames decoded",
     )
-    clips_counter = meter.create_counter(
-        "vjepa2_clips_processed_total",
-        description="Total clips inferred",
-    )
-    clip_duration = meter.create_histogram(
-        "vjepa2_clip_processing_seconds",
-        description="Per-clip inference duration",
-        unit="s",
-    )
 
     with tracer.start_as_current_span("stream_inference") as stream_span:
         stream_span.set_attribute("session.id", session.session_id)
@@ -197,7 +188,6 @@ async def inference_worker(
                 session._queue_depth.set(0)
                 break
 
-            clip_start = time.monotonic()
             with tracer.start_as_current_span("clip_inference") as clip_span:
                 clip_span.set_attribute("clip.index", session._clip_index)
                 clip_span.set_attribute("clip.start_frame", clip.start_frame)
@@ -226,7 +216,5 @@ async def inference_worker(
             session._clip_index += 1
             session.append_result(result)
             frames_counter.add(clip.end_frame - clip.start_frame)
-            clips_counter.add(1)
-            clip_duration.record(time.monotonic() - clip_start)
 
             await on_result(result)

@@ -109,20 +109,25 @@
         },
         {
           "expr": "system_memory_usage_bytes{state=\"used\"}",
-          "legendFormat": "Memory Used",
+          "legendFormat": "System Memory",
           "refId": "B"
         },
         {
           "expr": "vjepa2_device_memory_bytes{state=\"used\"}",
-          "legendFormat": "Device Mem Used",
+          "legendFormat": "GPU/Accelerator Memory",
           "refId": "C"
+        },
+        {
+          "expr": "DCGM_FI_DEV_GPU_UTIL or vector(0)",
+          "legendFormat": "GPU %",
+          "refId": "D"
         }
       ],
       "fieldConfig": {
         "defaults": { "unit": "percent", "min": 0, "max": 100 },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Memory Used" },
+            "matcher": { "id": "byName", "options": "System Memory" },
             "properties": [
               { "id": "unit", "value": "bytes" },
               { "id": "max", "value": null },
@@ -130,7 +135,7 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Device Mem Used" },
+            "matcher": { "id": "byName", "options": "GPU/Accelerator Memory" },
             "properties": [
               { "id": "unit", "value": "bytes" },
               { "id": "max", "value": null },
