@@ -46,6 +46,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
+      - prometheus-data:/prometheus
       - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
 
   jaeger:
@@ -54,6 +55,8 @@ services:
     ports:
       - "16686:16686"
       - "4318:4317"
+    volumes:
+      - jaeger-data:/tmp
 
   grafana:
     profiles: [observability]
@@ -67,6 +70,7 @@ services:
       - ./configs/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
       - ./configs/grafana/dashboards/dashboard.yaml:/etc/grafana/provisioning/dashboards/dashboard.yaml:ro
       - ./configs/grafana/dashboards/vjepa2.json:/var/lib/grafana/dashboards/vjepa2.json:ro
+      - grafana-data:/var/lib/grafana
 
   dcgm-exporter:
     profiles: [gpu-metrics]
@@ -82,3 +86,9 @@ services:
 volumes:
   vjepa2-model-vitl:
     external: true
+  prometheus-data:
+    name: vjepa2-prometheus-data
+  jaeger-data:
+    name: vjepa2-jaeger-data
+  grafana-data:
+    name: vjepa2-grafana-data
