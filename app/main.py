@@ -96,7 +96,7 @@ def health_ready():
         return JSONResponse({"error": "Model not ready"}, status_code=503)
     return {
         "status": "ready",
-        "model": CONFIG["model"]["hf_model_id"],
+        "model": CONFIG["model"]["hf_model_id"].split("/")[-1],
         "device": _model.device,
     }
 

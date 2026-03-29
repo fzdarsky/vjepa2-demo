@@ -39,7 +39,7 @@ function vjepa2App() {
         this.modelReady = resp.ok;
         if (resp.ok) {
           const data = await resp.json();
-          this.modelName = (data.model || '').replace(/^.*\//, '');
+          this.modelName = data.model || '';
           this.modelDevice = data.device || '';
         }
       } catch {
