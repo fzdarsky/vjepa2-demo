@@ -76,6 +76,7 @@ class BrowserStreamConfig(BaseModel):
     top_k: int = DEFAULT_TOP_K
     num_frames: int = DEFAULT_NUM_FRAMES
     stride: int = DEFAULT_STRIDE
+    media_type: str | None = None  # e.g. "video/mp4", "video/webm"; None for camera streams
 
 
 class RtspStreamConfig(BaseModel):

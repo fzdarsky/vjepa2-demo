@@ -56,13 +56,27 @@ class _StreamingBuffer:
         self._has_data.set()
 
 
-async def browser_source(websocket, session: StreamSession, on_clip_queued=None) -> None:
+_MIME_TO_PYAV_FORMAT = {
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/x-matroska": "matroska",
+    "video/webm": "matroska",
+    "video/avi": "avi",
+    "video/x-msvideo": "avi",
+}
+
+
+async def browser_source(websocket, session: StreamSession, on_clip_queued=None, media_type: str | None = None) -> None:
     """Receive binary video chunks from a browser WebSocket.
 
-    Expects binary messages containing video data (webm/mp4 chunks
-    from MediaRecorder) and a JSON {"action": "stop"} to end.
-    Decodes frames in a background thread as chunks arrive via a
-    streaming buffer, enabling real-time inference during recording.
+    Expects binary messages containing video data (webm chunks from
+    MediaRecorder, or a complete file) and a JSON {"action": "stop"}
+    to end.
+
+    When media_type is set (file upload), buffers all data then decodes
+    from a seekable BytesIO (required for formats like mp4 that need
+    seeking). When media_type is None (camera stream), decodes from a
+    streaming buffer concurrently as chunks arrive.
 
     on_clip_queued: optional async callback(clips_queued: int) called
     each time a clip is added to the inference queue.
@@ -70,40 +84,6 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None)
     session.status = "ingesting"
     frame_queue: asyncio.Queue = asyncio.Queue(maxsize=32)
     loop = asyncio.get_running_loop()
-    stream_buf = _StreamingBuffer()
-
-    def _decode_stream():
-        try:
-            container = av.open(stream_buf)
-            for frame in container.decode(video=0):
-                arr = frame.to_ndarray(format="rgb24")
-                asyncio.run_coroutine_threadsafe(
-                    frame_queue.put(arr), loop
-                ).result()
-            container.close()
-        except Exception as e:
-            logger.warning("Decoder error: %s", e)
-        finally:
-            asyncio.run_coroutine_threadsafe(
-                frame_queue.put(None), loop
-            ).result()
-
-    decoder_future = loop.run_in_executor(None, _decode_stream)
-
-    async def _receive_chunks():
-        """Receive chunks from WebSocket and write to streaming buffer."""
-        try:
-            while True:
-                msg = await websocket.receive()
-                if "text" in msg and msg["text"]:
-                    data = json.loads(msg["text"])
-                    if data.get("action") == "stop":
-                        break
-                    continue
-                if "bytes" in msg and msg["bytes"]:
-                    stream_buf.write(msg["bytes"])
-        finally:
-            stream_buf.close()
 
     async def _queue_clip(clip):
         await session.clip_queue.put(clip)
@@ -123,9 +103,71 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None)
             for clip in clips:
                 await _queue_clip(clip)
 
-    # Run chunk receiving and frame processing concurrently
-    await asyncio.gather(_receive_chunks(), _process_frames())
-    await asyncio.wrap_future(decoder_future)
+    def _decode_into_queue(source, fmt=None):
+        """Decode video from source, pushing frames into frame_queue."""
+        try:
+            kwargs = {"format": fmt} if fmt else {}
+            container = av.open(source, **kwargs)
+            for frame in container.decode(video=0):
+                arr = frame.to_ndarray(format="rgb24")
+                asyncio.run_coroutine_threadsafe(
+                    frame_queue.put(arr), loop
+                ).result()
+            container.close()
+        except Exception as e:
+            logger.warning("Decoder error: %s", e)
+        finally:
+            asyncio.run_coroutine_threadsafe(
+                frame_queue.put(None), loop
+            ).result()
+
+    if media_type:
+        # File upload: collect all data, then decode from seekable BytesIO
+        chunks = []
+        while True:
+            msg = await websocket.receive()
+            if "text" in msg and msg["text"]:
+                data = json.loads(msg["text"])
+                if data.get("action") == "stop":
+                    break
+                continue
+            if "bytes" in msg and msg["bytes"]:
+                chunks.append(msg["bytes"])
+
+        if not chunks:
+            session.status = "processing"
+            await session.clip_queue.put(None)
+            return
+
+        file_data = io.BytesIO(b"".join(chunks))
+        fmt = _MIME_TO_PYAV_FORMAT.get(media_type)
+        decoder_future = loop.run_in_executor(None, _decode_into_queue, file_data, fmt)
+        await _process_frames()
+        await asyncio.wrap_future(decoder_future)
+    else:
+        # Camera stream: decode concurrently via streaming buffer
+        stream_buf = _StreamingBuffer()
+
+        decoder_future = loop.run_in_executor(
+            None, _decode_into_queue, stream_buf, "matroska"
+        )
+
+        async def _receive_chunks():
+            try:
+                while True:
+                    msg = await websocket.receive()
+                    if "text" in msg and msg["text"]:
+                        data = json.loads(msg["text"])
+                        if data.get("action") == "stop":
+                            break
+                        continue
+                    if "bytes" in msg and msg["bytes"]:
+                        stream_buf.write(msg["bytes"])
+            finally:
+                stream_buf.close()
+
+        await asyncio.gather(_receive_chunks(), _process_frames())
+        await asyncio.wrap_future(decoder_future)
 
     # Flush remaining frames
     for clip in session.buffer.flush():

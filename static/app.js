@@ -155,6 +155,7 @@ function vjepa2App() {
         top_k: this.topK,
         num_frames: this.numFrames,
         stride: this.stride,
+        media_type: this.selectedFile.type || null,
       }));
       this.streaming = true;
       this.recording = true;
