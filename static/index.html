@@ -13,7 +13,7 @@
       <h1>V-JEPA2 Action Recognition</h1>
       <div class="status">
         <span class="status-dot" :class="modelReady ? 'ready' : 'loading'"></span>
-        <span x-text="modelReady ? 'Model ready (' + modelName + ' · ' + modelDevice.toUpperCase() + ')' : 'Loading...'"></span>
+        <span x-text="modelReady ? 'Model ready (' + modelName + ' · ' + modelDevice.toUpperCase() + ')' : 'Loading model' + (modelName ? ' (' + modelName + ')' : '') + '...'"></span>
       </div>
     </header>
     <nav class="tabs">

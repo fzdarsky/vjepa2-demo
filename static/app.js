@@ -36,17 +36,23 @@ function vjepa2App() {
     async checkModelReady() {
       try {
         const resp = await fetch('/v2/health/ready');
-        this.modelReady = resp.ok;
         if (resp.ok) {
           const data = await resp.json();
+          this.modelReady = true;
           this.modelName = data.model || '';
           this.modelDevice = data.device || '';
+        } else {
+          this.modelReady = false;
+          try {
+            const data = await resp.json();
+            this.modelName = data.model || '';
+          } catch {}
         }
       } catch {
         this.modelReady = false;
       }
       if (!this.modelReady) {
-        setTimeout(() => this.checkModelReady(), 5000);
+        setTimeout(() => this.checkModelReady(), 3000);
       }
     },
 

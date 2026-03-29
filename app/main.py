@@ -44,15 +44,14 @@ _model: VJepa2Model | None = None
 _sessions: dict[str, StreamSession] = {}
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+async def _load_model_background():
+    """Load model in background thread so the server can serve UI immediately."""
     global _model
     device = select_device(os.environ.get("DEVICE"))
 
-    init_telemetry(
-        service_name="vjepa2-server",
-        device=device,
-        otlp_endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"),
+    model_path = os.environ.get(
+        "MODEL_PATH",
+        CONFIG["model"].get("model_path", CONFIG["model"]["hf_model_id"]),
     )
 
     meter = get_meter()
@@ -62,23 +61,31 @@ async def lifespan(app: FastAPI):
         unit="s",
     )
 
-    model_path = os.environ.get(
-        "MODEL_PATH",
-        CONFIG["model"].get("model_path", CONFIG["model"]["hf_model_id"]),
-    )
-
     load_start = time.monotonic()
-    _model = VJepa2Model(
-        model_path=model_path,
-        device=device,
+    _model = await asyncio.to_thread(
+        VJepa2Model, model_path=model_path, device=device
     )
     model_load_gauge.set(time.monotonic() - load_start)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    device = select_device(os.environ.get("DEVICE"))
+
+    init_telemetry(
+        service_name="vjepa2-server",
+        device=device,
+        otlp_endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"),
+    )
+
     instrument_fastapi(app)
 
+    load_task = asyncio.create_task(_load_model_background())
     cleanup_task = asyncio.create_task(_session_cleanup_loop())
     yield
+    load_task.cancel()
     cleanup_task.cancel()
+    global _model
     _model = None
 
 
@@ -93,7 +100,10 @@ def health_live():
 @app.get("/v2/health/ready")
 def health_ready():
     if _model is None:
-        return JSONResponse({"error": "Model not ready"}, status_code=503)
+        return JSONResponse(
+            {"status": "loading", "model": CONFIG["model"]["hf_model_id"].split("/")[-1]},
+            status_code=503,
+        )
     return {
         "status": "ready",
         "model": CONFIG["model"]["hf_model_id"].split("/")[-1],
