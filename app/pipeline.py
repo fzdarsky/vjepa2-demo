@@ -181,8 +181,8 @@ async def inference_worker(
         "vjepa2_clips_processed_total",
         description="Total clips inferred",
     )
-    request_duration = meter.create_histogram(
-        "vjepa2_request_duration_seconds",
+    clip_duration = meter.create_histogram(
+        "vjepa2_clip_processing_seconds",
         description="Per-clip inference duration",
         unit="s",
     )
@@ -227,6 +227,6 @@ async def inference_worker(
             session.append_result(result)
             frames_counter.add(clip.end_frame - clip.start_frame)
             clips_counter.add(1)
-            request_duration.record(time.monotonic() - clip_start)
+            clip_duration.record(time.monotonic() - clip_start)
 
             await on_result(result)
