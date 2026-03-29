@@ -1,6 +1,7 @@
 services:
   vjepa2-server-cuda:
     profiles: [cuda]
+    image: vjepa2-server-cuda:latest
     build:
       context: .
       dockerfile: Containerfile.cuda
@@ -16,6 +17,7 @@ services:
 
   vjepa2-server-cpu:
     profiles: [cpu]
+    image: vjepa2-server-cpu:latest
     build:
       context: .
       dockerfile: Containerfile.cpu

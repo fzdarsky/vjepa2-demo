@@ -1,184 +1,95 @@
 # V-JEPA2 Video Inference Demo
 
-Video action recognition using Meta's [V-JEPA2](https://github.com/facebookresearch/jepa) model, packaged as a container with CLI and REST API.
+Video action recognition using Meta's [V-JEPA2](https://github.com/facebookresearch/jepa) model. Upload videos, record from your browser camera, or connect an RTSP camera and get action predictions from 174 classes (Something-Something v2).
 
-## Quick Start
+## Deploying with podman-compose
+
+### Prerequisites
+
+- [Podman](https://podman.io/) (on macOS: `podman machine init && podman machine start`)
+- `podman-compose` (`pip install podman-compose`)
+- Red Hat registry access for building (`podman login registry.redhat.io`)
+
+### Start the Stack
 
 ```bash
-# Pull the inference server and a model
-podman pull quay.io/fzdarsky/vjepa2-server-cpu:latest
-podman pull quay.io/fzdarsky/vjepa2-model-vitl:latest
-
-# Create a model volume from the ModelCar image
+# Create a model volume from the ModelCar image (one-time)
 podman volume create --driver image \
   --opt image=quay.io/fzdarsky/vjepa2-model-vitl:latest \
   vjepa2-model-vitl
 
-# Run inference on a video file
-podman run --rm \
-  -v vjepa2-model-vitl:/model:ro \
-  -v ./my-videos:/input:ro \
-  quay.io/fzdarsky/vjepa2-server-cpu infer /input/video.mp4
+# Build the server image (one-time, or after code changes)
+podman build -f Containerfile.cpu -t vjepa2-server-cpu .
+
+# Start the server with observability
+podman-compose --profile cpu --profile observability up -d
 ```
 
-## Available Models
-
-| Image | HuggingFace ID | Arch | Frames | Res | Size |
-| ----- | -------------- | ---- | ------ | --- | ---- |
-| `quay.io/fzdarsky/vjepa2-model-vitl` | `facebook/vjepa2-vitl-fpc16-256-ssv2` | ViT-L | 16 | 256px | ~1.4 GB |
-| `quay.io/fzdarsky/vjepa2-model-vitg` | `facebook/vjepa2-vitg-fpc64-384-ssv2` | ViT-G | 64 | 384px | ~4.3 GB |
-
-Both models are finetuned on Something-Something v2 (174 action classes) and packaged as uncompressed [ModelCar](https://kserve.github.io/website/latest/modelserving/storage/oci/) OCI images for fast volume creation. ViT-G uses 64 frames per clip at higher resolution — pass `--num-frames 64` when using it.
-
-## CLI Usage
-
-```bash
-# Clip-based inference with text output (default)
-podman run --rm -v vjepa2-model-vitl:/model:ro -v ./videos:/input:ro \
-  quay.io/fzdarsky/vjepa2-server-cpu infer /input/video.mp4
-
-# JSONL output (one JSON object per clip, pipeable)
-podman run --rm -v vjepa2-model-vitl:/model:ro -v ./videos:/input:ro \
-  quay.io/fzdarsky/vjepa2-server-cpu infer /input/video.mp4 --format jsonl
-
-# Export frames to see what the model sees
-podman run --rm -v vjepa2-model-vitl:/model:ro -v ./videos:/input:ro -v ./output:/output \
-  quay.io/fzdarsky/vjepa2-server-cpu infer /input/video.mp4 --save-frames
-
-# Process all videos in /input/
-podman run --rm -v vjepa2-model-vitl:/model:ro -v ./videos:/input:ro \
-  quay.io/fzdarsky/vjepa2-server-cpu infer
-```
-
-**Options:** `--stride N` (clip overlap), `--num-frames N` (default 16), `--top-k N` (predictions per clip), `--format text|json|jsonl`
-
-## API Server
-
-```bash
-# Start the server
-podman run --rm -p 8080:8080 \
-  -v vjepa2-model-vitl:/model:ro \
-  -v ./videos:/input:ro \
-  quay.io/fzdarsky/vjepa2-server-cpu serve
-
-# Single-clip inference
-curl -X POST http://localhost:8080/v2/models/vjepa2/infer \
-  -F "file=@video.mp4"
-
-# Multi-clip inference with stride
-curl -X POST http://localhost:8080/v2/models/vjepa2/infer \
-  -F "file=@video.mp4" -F "stride=16"
-```
-
-**Endpoints:**
-
-- `GET /v2/health/live` — liveness probe
-- `GET /v2/health/ready` — readiness probe (model loaded)
-- `GET /v2/models/vjepa2` — model metadata
-- `POST /v2/models/vjepa2/infer` — video inference
-- `WS /v2/models/vjepa2/stream` — WebSocket streaming
-
-## Building from Source
-
-### Container Variants
-
-Two container images are available, optimized for different platforms:
-
-| Variant | Base Image | Arch | Accelerator | Build |
-| ------- | ---------- | ---- | ----------- | ----- |
-| CPU | `ubi9/python-312` | x86_64, aarch64 | CPU | `podman compose --profile cpu up --build` |
-| CUDA | RHOAI pipeline runtime | x86_64 | NVIDIA GPU | `podman compose --profile cuda up --build` |
-
-Both variants require a ModelCar volume with model weights:
-
-```bash
-# Create model volume (one-time setup)
-podman volume create --driver image \
-  --opt image=quay.io/fzdarsky/vjepa2-model-vitl:latest \
-  vjepa2-model-vitl
-
-# Build and run CPU variant
-podman compose --profile cpu up --build
-
-# Build and run CUDA variant (requires NVIDIA GPU + nvidia-container-toolkit)
-podman compose --profile cuda up --build
-```
-
-To build individual images without compose:
-
-```bash
-podman build -t vjepa2-server-cpu -f Containerfile.cpu .
-podman build -t vjepa2-server-cuda -f Containerfile.cuda .
-```
-
-**Note:** Both images pull from `registry.redhat.io` (Red Hat subscription required). Run `podman login registry.redhat.io` first.
-
-## Native Execution (macOS MPS)
-
-For GPU-accelerated inference on Apple Silicon without containers, run the app natively. PyTorch auto-detects the MPS device.
-
-```bash
-# Set up virtual environment
-python3.12 -m venv .venv && source .venv/bin/activate
-
-# Install dependencies (PyPI provides MPS-capable PyTorch on macOS)
-pip install torch torchvision
-pip install -r requirements.txt
-
-# Download model
-python -m app download --model facebook/vjepa2-vitl-fpc16-256-ssv2 --output ./model-staging
-
-# Run inference with MPS acceleration
-MODEL_PATH=./model-staging python -m app infer samples/video.mp4
-
-# Or start the API server
-MODEL_PATH=./model-staging python -m app serve
-```
-
-MPS acceleration is not available inside containers — Podman's Linux VM exposes Vulkan (via virtio-gpu), not Metal/MPS. Use native execution for Apple Silicon GPU performance.
-
-## Observability
-
-The app includes an optional observability stack powered by OpenTelemetry, Prometheus, Jaeger, and Grafana.
-
-### Quick Start
-
-```bash
-# Run with CPU inference + observability
-podman compose --profile cpu --profile observability up --build
-
-# Run with CUDA inference + observability + GPU metrics
-podman compose --profile cuda --profile observability --profile gpu-metrics up --build
-```
+For NVIDIA GPU acceleration, use `Containerfile.cuda` and `--profile cuda` instead.
 
 ### Access Points
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| App | http://localhost:8080 | V-JEPA2 inference API |
-| Grafana | http://localhost:3000 | Pre-built dashboard |
+| Web UI | http://localhost:8080 | Video inference (upload, camera, RTSP) |
+| Grafana | http://localhost:3000 | Performance dashboard |
 | Jaeger | http://localhost:16686 | Trace visualization |
 | Prometheus | http://localhost:9090 | Metrics queries |
 
-### Dashboard
-
-Grafana comes with a pre-provisioned "V-JEPA2 Inference" dashboard showing:
-
-- **Clip Golden Signals** — latency, throughput, real-time violations, resource utilization
-- **Pipeline Phase Breakdown** — where clip processing time is spent (decode, preprocess, inference, postprocess)
-- **API Golden Signals** — request latency, throughput, HTTP errors, active connections
-- **Stat Panels** — device type, model load time, current real-time ratio, uptime
-
-### Viewing Traces
-
-After running an inference request, open Jaeger at http://localhost:16686 and search for the `vjepa2-server` service. Each inference request shows a trace waterfall with spans for decode, preprocess, inference, and postprocess phases.
-
-### OpenShift Deployment
+## Deploying on OpenShift
 
 The same app instrumentation works on OpenShift without code changes. The OTel Collector, Prometheus, and Jaeger are provided by:
 
-- Cluster Observability Operator (OpenTelemetryCollector CR)
-- Built-in cluster monitoring (ServiceMonitor/PodMonitor CRs)
-- Red Hat distributed tracing (TempoStack or Jaeger CR)
+- Cluster Observability Operator (`OpenTelemetryCollector` CR)
+- Built-in cluster monitoring (`ServiceMonitor`/`PodMonitor` CRs)
+- Red Hat distributed tracing (`TempoStack` or `Jaeger` CR)
 
 Set `OTEL_EXPORTER_OTLP_ENDPOINT` to point to your cluster's OTel Collector.
+
+## Using the Web UI
+
+Open http://localhost:8080. Three input modes are available:
+
+- **Upload** — select or drag-and-drop a video file for batch inference
+- **Camera** — record from your browser camera with inference running while you record
+- **RTSP** — connect to an RTSP stream (e.g. `rtsp://192.168.1.x/...`) for continuous inference
+
+Results stream in as clips are processed. Each result shows a thumbnail and top-k action predictions with confidence scores. Camera mode shows a recording timer and progress indicator.
+
+After a session completes, click **Download** to get an annotated MP4 with predictions overlaid on each frame.
+
+## Dashboard
+
+Grafana (http://localhost:3000) has a pre-provisioned **V-JEPA2 Inference** dashboard with four sections:
+
+- **Clip Golden Signals** — p50/p95/p99 clip latency, throughput (clips/sec), real-time ratio, and resource utilization (CPU, memory, GPU). The real-time ratio shows whether the system can keep up: values above 1.0 (red line) mean inference is slower than real-time.
+- **Pipeline Phase Breakdown** — where clip processing time is spent (decode, preprocess, inference, postprocess), shown as both percentage and absolute duration. Useful for identifying bottlenecks.
+- **API Golden Signals** — request latency, throughput, HTTP errors, and active WebSocket connections.
+- **Stats** — total clips/frames processed, average clip duration, total requests.
+
+## Traces
+
+After running inference, open Jaeger (http://localhost:16686) and search for the `vjepa2-server` service. Each request produces a trace waterfall:
+
+- **Batch inference** (`/infer`) — `video_inference` span containing one `clip_inference` span per clip
+- **Streaming** (camera/RTSP) — `stream_inference` span with `clip_inference` children, showing how clips overlap with ingestion
+
+## CLI
+
+```bash
+# Run inference on a video
+podman run --rm -v vjepa2-model-vitl:/model:ro -v ./videos:/input:ro \
+  quay.io/fzdarsky/vjepa2-server-cpu infer /input/video.mp4
+
+# JSONL output (pipeable)
+podman run --rm -v vjepa2-model-vitl:/model:ro -v ./videos:/input:ro \
+  quay.io/fzdarsky/vjepa2-server-cpu infer /input/video.mp4 --format jsonl
+
+# Process all videos in a directory
+podman run --rm -v vjepa2-model-vitl:/model:ro -v ./videos:/input:ro \
+  quay.io/fzdarsky/vjepa2-server-cpu infer
+```
+
+**Options:** `--stride N` (clip overlap), `--num-frames N` (default 16), `--top-k N` (predictions per clip), `--format text|json|jsonl`, `--save-frames` (export decoded frames)
+
+Use the larger ViT-G model for higher accuracy: pass `--num-frames 64` and create a volume from `quay.io/fzdarsky/vjepa2-model-vitg`.
