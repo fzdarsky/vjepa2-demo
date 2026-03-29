@@ -27,6 +27,26 @@ podman-compose --profile cpu --profile observability up -d
 
 For NVIDIA GPU acceleration, use `Containerfile.cuda` and `--profile cuda` instead.
 
+### Native Server with Containerized Observability
+
+On macOS, run the server natively for Apple Silicon MPS acceleration while keeping the observability stack in containers:
+
+```bash
+# Start only the observability stack
+podman-compose --profile observability up -d
+
+# Set up Python environment (one-time)
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install torch torchvision && pip install -r requirements.txt
+
+# Start the server natively (auto-detects MPS on Apple Silicon)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
+MODEL_PATH=./model \
+python -m app serve
+```
+
+The native server sends telemetry to the containerized OTel Collector via `localhost:4317`. Grafana, Jaeger, and Prometheus work the same way.
+
 ### Access Points
 
 | Service | URL | Purpose |
