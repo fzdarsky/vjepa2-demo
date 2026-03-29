@@ -2,6 +2,8 @@ function vjepa2App() {
   return {
     tab: 'upload',
     modelReady: false,
+    modelName: '',
+    modelDevice: '',
     streaming: false,
     recording: false,
     sessionId: null,
@@ -35,6 +37,11 @@ function vjepa2App() {
       try {
         const resp = await fetch('/v2/health/ready');
         this.modelReady = resp.ok;
+        if (resp.ok) {
+          const data = await resp.json();
+          this.modelName = data.model || '';
+          this.modelDevice = data.device || '';
+        }
       } catch {
         this.modelReady = false;
       }

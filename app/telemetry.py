@@ -62,6 +62,9 @@ def init_telemetry(
     metrics.set_meter_provider(meter_provider)
     _meter = metrics.get_meter("vjepa2")
 
+    # Device memory observable gauges
+    _register_device_memory_gauges(_meter, device)
+
     # Traces
     tracer_provider = TracerProvider(resource=resource)
     span_exporter = OTLPSpanExporter(**exporter_kwargs)
@@ -92,6 +95,41 @@ def get_tracer():
     if _HAS_OTEL:
         return trace.get_tracer("vjepa2")
     return _NoOpTracer()
+
+
+def _register_device_memory_gauges(meter, device: str) -> None:
+    """Register observable gauges for GPU/accelerator memory."""
+    import torch
+
+    if device == "mps":
+        def _mps_mem_callback(_):
+            allocated = torch.mps.current_allocated_memory()
+            total = torch.mps.driver_allocated_memory()
+            return [
+                metrics.Observation(allocated, {"state": "used"}),
+                metrics.Observation(total - allocated, {"state": "free"}),
+            ]
+        meter.create_observable_gauge(
+            "vjepa2_device_memory_bytes",
+            callbacks=[_mps_mem_callback],
+            description="Accelerator memory usage",
+            unit="By",
+        )
+
+    elif device == "cuda":
+        def _cuda_mem_callback(_):
+            allocated = torch.cuda.memory_allocated()
+            total = torch.cuda.get_device_properties(0).total_mem
+            return [
+                metrics.Observation(allocated, {"state": "used"}),
+                metrics.Observation(total - allocated, {"state": "free"}),
+            ]
+        meter.create_observable_gauge(
+            "vjepa2_device_memory_bytes",
+            callbacks=[_cuda_mem_callback],
+            description="Accelerator memory usage",
+            unit="By",
+        )
 
 
 class _NoOpMeter:

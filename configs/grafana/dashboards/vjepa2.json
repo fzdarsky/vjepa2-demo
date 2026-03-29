@@ -113,14 +113,9 @@
           "refId": "B"
         },
         {
-          "expr": "DCGM_FI_DEV_GPU_UTIL or vector(0)",
-          "legendFormat": "GPU %",
+          "expr": "vjepa2_device_memory_bytes{state=\"used\"}",
+          "legendFormat": "Device Mem Used",
           "refId": "C"
-        },
-        {
-          "expr": "(DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100) or vector(0)",
-          "legendFormat": "VRAM %",
-          "refId": "D"
         }
       ],
       "fieldConfig": {
@@ -128,6 +123,14 @@
         "overrides": [
           {
             "matcher": { "id": "byName", "options": "Memory Used" },
+            "properties": [
+              { "id": "unit", "value": "bytes" },
+              { "id": "max", "value": null },
+              { "id": "custom.axisPlacement", "value": "right" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Device Mem Used" },
             "properties": [
               { "id": "unit", "value": "bytes" },
               { "id": "max", "value": null },

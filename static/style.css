@@ -17,6 +17,7 @@ body {
 .status-dot { width: 8px; height: 8px; border-radius: 50%; }
 .status-dot.ready { background: #34a853; }
 .status-dot.loading { background: #fbbc04; }
+.status-detail { color: #aaa; font-size: 11px; }
 
 .tabs { display: flex; gap: 0; padding: 0 20px; background: #fff; }
 .tabs button {

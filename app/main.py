@@ -94,7 +94,11 @@ def health_live():
 def health_ready():
     if _model is None:
         return JSONResponse({"error": "Model not ready"}, status_code=503)
-    return {"status": "ready"}
+    return {
+        "status": "ready",
+        "model": CONFIG["model"]["name"],
+        "device": _model.device,
+    }
 
 
 @app.get("/v2/models/vjepa2")
