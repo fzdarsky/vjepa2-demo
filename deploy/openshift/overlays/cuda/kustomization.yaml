@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base
+
+patches:
+- target:
+    kind: Deployment
+    name: vjepa2-server
+  patch: |
+    - op: replace
+      path: /spec/template/spec/containers/0/image
+      value: quay.io/fzdarsky/vjepa2-server-cuda:latest
+    - op: replace
+      path: /spec/template/spec/containers/0/env/1/value
+      value: cuda
+    - op: replace
+      path: /spec/template/spec/containers/0/resources
+      value:
+        requests:
+          cpu: "4"
+          memory: 16Gi
+        limits:
+          cpu: "4"
+          memory: 16Gi
+          nvidia.com/gpu: "1"
+    - op: add
+      path: /spec/template/spec/tolerations
+      value:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+    - op: add
+      path: /spec/template/spec/nodeSelector
+      value:
+        feature.node.kubernetes.io/pci-10de.present: "true"
+    - op: replace
+      path: /spec/template/spec/volumes/0/image/reference
+      value: quay.io/fzdarsky/vjepa2-model-vitg:latest
