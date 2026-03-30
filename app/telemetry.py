@@ -119,7 +119,7 @@ def _register_device_memory_gauges(meter, device: str) -> None:
     elif device == "cuda":
         def _cuda_mem_callback(_):
             allocated = torch.cuda.memory_allocated()
-            total = torch.cuda.get_device_properties(0).total_mem
+            total = torch.cuda.get_device_properties(0).total_memory
             return [
                 metrics.Observation(allocated, {"state": "used"}),
                 metrics.Observation(total - allocated, {"state": "free"}),
