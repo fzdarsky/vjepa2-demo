@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vjepa2-server
+  namespace: vjepa2
+  labels:
+    app: vjepa2-server
+    app.kubernetes.io/name: vjepa2-server
+    app.kubernetes.io/part-of: vjepa2
+    app.kubernetes.io/component: inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vjepa2-server
+  template:
+    metadata:
+      labels:
+        app: vjepa2-server
+        app.kubernetes.io/name: vjepa2-server
+        app.kubernetes.io/part-of: vjepa2
+        app.kubernetes.io/component: inference
+    spec:
+      containers:
+      - name: kserve-container
+        image: quay.io/fzdarsky/vjepa2-server-cpu:latest
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: MODEL_PATH
+          value: /model
+        - name: DEVICE
+          value: cpu
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://otel-collector.vjepa2.svc:4317
+        resources:
+          requests:
+            cpu: "2"
+            memory: 8Gi
+          limits:
+            cpu: "4"
+            memory: 12Gi
+        livenessProbe:
+          httpGet:
+            path: /v2/health/live
+            port: http
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 3
+        volumeMounts:
+        - name: model-weights
+          mountPath: /model
+          readOnly: true
+      volumes:
+      - name: model-weights
+        image:
+          reference: quay.io/fzdarsky/vjepa2-model-vitl:latest
+          pullPolicy: IfNotPresent
