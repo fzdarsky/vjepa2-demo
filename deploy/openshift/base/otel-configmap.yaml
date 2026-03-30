@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: vjepa2
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: vjepa2
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+
+    connectors:
+      spanmetrics:
+        histogram:
+          explicit:
+            buckets: [10, 50, 100, 500, 1000, 2000, 5000, 10000]
+        metrics_flush_interval: 5s
+
+    processors:
+      batch:
+        send_batch_size: 1024
+        timeout: 5s
+
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: ""
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp, spanmetrics]
+          processors: [batch]
+          exporters: [prometheus]
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [spanmetrics]
