@@ -1,11 +1,14 @@
 # app/main.py
 import asyncio
+import logging
 import os
 import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import yaml
@@ -350,11 +353,15 @@ async def stream_browser(websocket: WebSocket):
         await session.clip_queue.put(None)
         await worker_task
     except Exception as e:
-        await websocket.send_json(ErrorMessage(message=str(e)).model_dump())
+        logger.error("WebSocket stream error: %s", e)
         await session.clip_queue.put(None)
         await worker_task
         active_connections.add(-1)
-        await websocket.close(code=1011)
+        try:
+            await websocket.send_json(ErrorMessage(message=str(e)).model_dump())
+            await websocket.close(code=1011)
+        except Exception:
+            pass
         return
     active_connections.add(-1)
     session.complete()

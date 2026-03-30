@@ -160,7 +160,11 @@ function vjepa2App() {
       this.streaming = true;
       this.recording = true;
       const buffer = await this.selectedFile.arrayBuffer();
-      this.ws.send(buffer);
+      // Send in 1 MiB chunks to avoid WebSocket frame size limits
+      const CHUNK = 1024 * 1024;
+      for (let offset = 0; offset < buffer.byteLength; offset += CHUNK) {
+        this.ws.send(buffer.slice(offset, offset + CHUNK));
+      }
       this.ws.send(JSON.stringify({ action: 'stop' }));
       this.recording = false;
     },

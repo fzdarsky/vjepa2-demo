@@ -14,7 +14,7 @@ VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 def cmd_serve(args):
     """Start FastAPI server via uvicorn."""
     import uvicorn
-    uvicorn.run("app.main:app", host=args.host, port=args.port)
+    uvicorn.run("app.main:app", host=args.host, port=args.port, ws_max_size=None)
 
 
 def _load_model():

@@ -126,6 +126,8 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
         chunks = []
         while True:
             msg = await websocket.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
             if "text" in msg and msg["text"]:
                 data = json.loads(msg["text"])
                 if data.get("action") == "stop":
@@ -156,6 +158,8 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
             try:
                 while True:
                     msg = await websocket.receive()
+                    if msg.get("type") == "websocket.disconnect":
+                        break
                     if "text" in msg and msg["text"]:
                         data = json.loads(msg["text"])
                         if data.get("action") == "stop":

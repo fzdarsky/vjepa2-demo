@@ -59,7 +59,7 @@ async def test_browser_source_decodes_chunks(session):
         ]
     )
 
-    await browser_source(ws, session)
+    await browser_source(ws, session, media_type="video/mp4")
 
     assert session.buffer.total_frames == 8
     assert session.status == "processing"
