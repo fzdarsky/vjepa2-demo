@@ -1,0 +1,21 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: vjepa2-server
+  namespace: vjepa2
+  labels:
+    app: vjepa2-server
+    app.kubernetes.io/name: vjepa2-server
+    app.kubernetes.io/part-of: vjepa2
+  annotations:
+    haproxy.router.openshift.io/timeout: 3600s
+spec:
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  port:
+    targetPort: http
+  to:
+    kind: Service
+    name: vjepa2-server
+    weight: 100
