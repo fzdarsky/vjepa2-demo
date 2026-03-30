@@ -1,0 +1,479 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: vjepa2-grafana
+  namespace: vjepa2
+  labels:
+    app: vjepa2-grafana
+    app.kubernetes.io/name: vjepa2-grafana
+    app.kubernetes.io/part-of: vjepa2
+    dashboards: vjepa2
+spec:
+  config:
+    auth.anonymous:
+      enabled: "true"
+    security:
+      admin_user: admin
+      admin_password: admin
+  route:
+    spec:
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: vjepa2-prometheus
+  namespace: vjepa2
+  labels:
+    app.kubernetes.io/part-of: vjepa2
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: vjepa2
+  datasource:
+    name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://otel-collector.vjepa2.svc:8889
+    isDefault: true
+    editable: true
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: vjepa2-inference
+  namespace: vjepa2
+  labels:
+    app.kubernetes.io/part-of: vjepa2
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: vjepa2
+  json: |
+    {
+      "uid": "vjepa2-inference",
+      "title": "V-JEPA2 Inference",
+      "editable": true,
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "version": 3,
+      "refresh": "5s",
+      "time": {
+        "from": "now-15m",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "id": 100,
+          "type": "row",
+          "title": "Clip Golden Signals",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+          "collapsed": false
+        },
+        {
+          "id": 1,
+          "title": "Clip Latency (p50 / p95 / p99)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 1, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.5, sum(rate(vjepa2_clip_processing_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(vjepa2_clip_processing_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(vjepa2_clip_processing_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s", "min": 0 }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Clip Throughput",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 1, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "sum(rate(vjepa2_clips_processed_total[1m]))",
+              "legendFormat": "clips/sec",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "ops", "min": 0 }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Real-Time Ratio (clip processing / RT budget)",
+          "description": "Ratio of actual clip processing time to real-time budget (16 frames @ 30fps = 0.533s). Values > 1.0 mean the system cannot keep up with real-time.",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 9, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "(rate(vjepa2_clip_processing_seconds_sum[5m]) / rate(vjepa2_clip_processing_seconds_count[5m])) / (16.0 / 30.0)",
+              "legendFormat": "RT ratio",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "min": 0,
+              "custom": {
+                "fillOpacity": 10,
+                "thresholdsStyle": { "mode": "line" }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 1.0, "color": "red" }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Utilization",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 9, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "100 * (1 - sum(rate(system_cpu_time_seconds_total{state=\"idle\"}[1m])) / sum(rate(system_cpu_time_seconds_total[1m])))",
+              "legendFormat": "CPU %",
+              "refId": "A"
+            },
+            {
+              "expr": "system_memory_usage_bytes{state=\"used\"}",
+              "legendFormat": "System Memory",
+              "refId": "B"
+            },
+            {
+              "expr": "vjepa2_device_memory_bytes{state=\"used\"}",
+              "legendFormat": "GPU/Accelerator Memory",
+              "refId": "C"
+            },
+            {
+              "expr": "DCGM_FI_DEV_GPU_UTIL or vector(0)",
+              "legendFormat": "GPU %",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "percent", "min": 0, "max": 100 },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "System Memory" },
+                "properties": [
+                  { "id": "unit", "value": "bytes" },
+                  { "id": "max", "value": null },
+                  { "id": "custom.axisPlacement", "value": "right" }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "GPU/Accelerator Memory" },
+                "properties": [
+                  { "id": "unit", "value": "bytes" },
+                  { "id": "max", "value": null },
+                  { "id": "custom.axisPlacement", "value": "right" }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": 101,
+          "type": "row",
+          "title": "Pipeline Phase Breakdown",
+          "gridPos": { "x": 0, "y": 17, "w": 24, "h": 1 },
+          "collapsed": false
+        },
+        {
+          "id": 5,
+          "title": "Pipeline Phase — % of Clip Time",
+          "description": "Each phase as a percentage of total clip processing time. Shows where the bottleneck is and how it shifts over time.",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 18, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"decode_video\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"decode_video\"}[5m]))",
+              "legendFormat": "decode",
+              "refId": "A"
+            },
+            {
+              "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"preprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"preprocess\"}[5m]))",
+              "legendFormat": "preprocess",
+              "refId": "B"
+            },
+            {
+              "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"inference\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"inference\"}[5m]))",
+              "legendFormat": "inference",
+              "refId": "C"
+            },
+            {
+              "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"postprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"postprocess\"}[5m]))",
+              "legendFormat": "postprocess",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "min": 0,
+              "custom": { "stacking": { "mode": "percent" }, "fillOpacity": 80 }
+            }
+          },
+          "options": {
+            "tooltip": { "mode": "multi" }
+          }
+        },
+        {
+          "id": 14,
+          "title": "Pipeline Phase — Absolute Duration",
+          "description": "Average wall-clock time per phase in milliseconds. Complements the percentage view.",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 18, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"decode_video\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"decode_video\"}[5m])",
+              "legendFormat": "decode",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"preprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"preprocess\"}[5m])",
+              "legendFormat": "preprocess",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"inference\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"inference\"}[5m])",
+              "legendFormat": "inference",
+              "refId": "C"
+            },
+            {
+              "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"postprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"postprocess\"}[5m])",
+              "legendFormat": "postprocess",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "min": 0,
+              "custom": {
+                "scaleDistribution": { "type": "log", "log": 10 }
+              }
+            }
+          },
+          "options": {
+            "tooltip": { "mode": "multi" }
+          }
+        },
+        {
+          "id": 102,
+          "type": "row",
+          "title": "API Golden Signals",
+          "gridPos": { "x": 0, "y": 26, "w": 24, "h": 1 },
+          "collapsed": false
+        },
+        {
+          "id": 6,
+          "title": "Request Latency (p50 / p95 / p99)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 27, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.5, sum(rate(vjepa2_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(vjepa2_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(vjepa2_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s", "min": 0 }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Request Throughput",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 27, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "sum by (endpoint) (rate(vjepa2_requests_total[1m]))",
+              "legendFormat": "{{endpoint}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps", "min": 0 }
+          }
+        },
+        {
+          "id": 8,
+          "title": "HTTP Errors",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 35, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "sum by (status) (rate(vjepa2_requests_total{status=~\"4..|5..\"}[1m])) or vector(0)",
+              "legendFormat": "{{status}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps", "min": 0 }
+          }
+        },
+        {
+          "id": 9,
+          "title": "Active WebSocket Connections",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 35, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "vjepa2_active_connections or vector(0)",
+              "legendFormat": "connections",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "min": 0 }
+          }
+        },
+        {
+          "id": 103,
+          "type": "row",
+          "title": "Stats",
+          "gridPos": { "x": 0, "y": 43, "w": 24, "h": 1 },
+          "collapsed": false
+        },
+        {
+          "id": 10,
+          "title": "Total Clips Processed",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 44, "w": 6, "h": 6 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "vjepa2_clips_processed_total",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value"
+          }
+        },
+        {
+          "id": 11,
+          "title": "Total Frames Decoded",
+          "type": "stat",
+          "gridPos": { "x": 6, "y": 44, "w": 6, "h": 6 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "vjepa2_frames_processed_total",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value"
+          }
+        },
+        {
+          "id": 12,
+          "title": "Avg Clip Duration",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 44, "w": 6, "h": 6 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "rate(vjepa2_clip_processing_seconds_sum[5m]) / rate(vjepa2_clip_processing_seconds_count[5m])",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "value": null, "color": "green" },
+                  { "value": 3, "color": "yellow" },
+                  { "value": 10, "color": "red" }
+                ]
+              }
+            }
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value"
+          }
+        },
+        {
+          "id": 13,
+          "title": "Total Requests",
+          "type": "stat",
+          "gridPos": { "x": 18, "y": 44, "w": 6, "h": 6 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "sum(vjepa2_requests_total)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value"
+          }
+        }
+      ]
+    }
