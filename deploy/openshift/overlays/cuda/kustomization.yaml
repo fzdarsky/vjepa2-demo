@@ -19,11 +19,11 @@ patches:
       path: /spec/template/spec/containers/0/resources
       value:
         requests:
-          cpu: "4"
-          memory: 16Gi
+          cpu: 500m
+          memory: 4Gi
         limits:
-          cpu: "4"
-          memory: 16Gi
+          cpu: "2"
+          memory: 8Gi
           nvidia.com/gpu: "1"
     - op: add
       path: /spec/template/spec/tolerations
@@ -34,7 +34,7 @@ patches:
     - op: add
       path: /spec/template/spec/nodeSelector
       value:
-        feature.node.kubernetes.io/pci-10de.present: "true"
+        nvidia.com/gpu.present: "true"
     - op: replace
       path: /spec/template/spec/volumes/0/image/reference
-      value: quay.io/fzdarsky/vjepa2-model-vitg:latest
+      value: quay.io/fzdarsky/vjepa2-model-vitl:latest
