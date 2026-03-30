@@ -37,7 +37,7 @@ spec:
     type: prometheus
     uid: prometheus
     access: proxy
-    url: http://otel-collector.vjepa2.svc:8889
+    url: http://vjepa2-prometheus.vjepa2.svc:9090
     isDefault: true
     editable: true
 ---

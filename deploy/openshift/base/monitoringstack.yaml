@@ -1,0 +1,15 @@
+apiVersion: monitoring.rhobs/v1alpha1
+kind: MonitoringStack
+metadata:
+  name: vjepa2
+  namespace: vjepa2
+  labels:
+    app.kubernetes.io/part-of: vjepa2
+spec:
+  logLevel: info
+  prometheusConfig:
+    replicas: 1
+  resourceSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: vjepa2
+  retention: 3d

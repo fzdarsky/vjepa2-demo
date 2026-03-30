@@ -9,6 +9,7 @@ resources:
 - otel-configmap.yaml
 - otel-collector.yaml
 - servicemonitor.yaml
+- monitoringstack.yaml
 - grafana.yaml
 
 commonLabels:
