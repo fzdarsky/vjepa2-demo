@@ -58,13 +58,17 @@ The native server sends telemetry to the containerized OTel Collector via `local
 
 ## Deploying on OpenShift
 
-The same app instrumentation works on OpenShift without code changes. The OTel Collector, Prometheus, and Jaeger are provided by:
+Kustomize manifests deploy the full stack (inference server, OTel Collector, Jaeger, Grafana) on OpenShift 4.20+ with CPU or CUDA overlays. Model weights are delivered via K8s image volumes (KEP-4639) — no PVCs or init containers needed.
 
-- Cluster Observability Operator (`OpenTelemetryCollector` CR)
-- Built-in cluster monitoring (`ServiceMonitor`/`PodMonitor` CRs)
-- Red Hat distributed tracing (`TempoStack` or `Jaeger` CR)
+```bash
+# Install required operators (one-time)
+oc apply -k deploy/openshift/operators/
 
-Set `OTEL_EXPORTER_OTLP_ENDPOINT` to point to your cluster's OTel Collector.
+# Deploy with CUDA (or overlays/cpu/ for CPU-only)
+oc apply -k deploy/openshift/overlays/cuda/
+```
+
+See [deploy/openshift/README.md](deploy/openshift/README.md) for the full deployment guide including prerequisites, troubleshooting, and architecture details.
 
 ## Using the Web UI
 

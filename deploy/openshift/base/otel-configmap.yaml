@@ -31,6 +31,10 @@ data:
       prometheus:
         endpoint: 0.0.0.0:8889
         namespace: ""
+      otlp/jaeger:
+        endpoint: jaeger-collector.vjepa2.svc:4317
+        tls:
+          insecure: true
 
     service:
       pipelines:
@@ -41,4 +45,4 @@ data:
         traces:
           receivers: [otlp]
           processors: [batch]
-          exporters: [spanmetrics]
+          exporters: [otlp/jaeger, spanmetrics]

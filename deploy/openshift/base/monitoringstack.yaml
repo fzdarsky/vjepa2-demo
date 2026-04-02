@@ -12,4 +12,6 @@ spec:
   resourceSelector:
     matchLabels:
       app.kubernetes.io/part-of: vjepa2
+  alertmanagerConfig:
+    disabled: true
   retention: 3d
