@@ -2,12 +2,15 @@ FROM registry.redhat.io/ubi9/python-312:latest
 
 WORKDIR /app
 
-# PyTorch CPU from PyPI default index (has aarch64 wheels)
-RUN pip install --no-cache-dir 'torch>=2.6.0' 'torchvision>=0.21.0'
+# Red Hat-built PyTorch CPU wheel (~155 MB vs ~900 MB from PyPI default)
+# Install torch exclusively from RH index to avoid pip preferring PyPI's manylinux wheel
+ARG RH_INDEX=https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.4/cpu-ubi9/simple/
+RUN pip install --no-cache-dir --index-url ${RH_INDEX} 'torch==2.10.0'
 
-# App dependencies (av wheel bundles FFmpeg — no system packages needed)
+# App dependencies: RH index primary, PyPI fallback for av (not in RH index)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url ${RH_INDEX} --extra-index-url https://pypi.org/simple/ \
+    -r requirements.txt
 
 COPY app/ ./app/
 COPY configs/ ./configs/
