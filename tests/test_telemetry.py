@@ -78,7 +78,7 @@ def test_clip_metrics_recorded():
             logits = torch.randn(1, 174)
             model_instance.return_value = MagicMock(logits=logits)
             model_instance.to.return_value = model_instance
-            model_instance.eval.return_value = model_instance
+            model_instance.train.return_value = model_instance
             MockModel.from_pretrained.return_value = model_instance
 
             from app.model import VJepa2Model
@@ -128,7 +128,7 @@ def test_realtime_violation_counted():
             logits = torch.randn(1, 174)
             model_instance.return_value = MagicMock(logits=logits)
             model_instance.to.return_value = model_instance
-            model_instance.eval.return_value = model_instance
+            model_instance.train.return_value = model_instance
             MockModel.from_pretrained.return_value = model_instance
 
             # Simulate 0.5s processing time — exceeds stride=8 / fps=30 = 0.267s
@@ -185,7 +185,7 @@ def test_trace_spans_created(sample_video_path):
             logits = torch.randn(1, 174)
             model_instance.return_value = MagicMock(logits=logits)
             model_instance.to.return_value = model_instance
-            model_instance.eval.return_value = model_instance
+            model_instance.train.return_value = model_instance
             MockModel.from_pretrained.return_value = model_instance
 
             from app.model import VJepa2Model
@@ -196,10 +196,12 @@ def test_trace_spans_created(sample_video_path):
             model.predict(frames, top_k=5)
 
         span_names = [span.name for span in span_exporter.get_finished_spans()]
-        assert "decode_video" in span_names
-        assert "preprocess" in span_names
-        assert "inference" in span_names
-        assert "postprocess" in span_names
+        # Check for renamed spans (new naming convention)
+        assert "input_decode" in span_names
+        assert "input_preprocess" in span_names
+        assert "output_postprocess" in span_names
+        # Note: jepa_encode, jepa_predict, jepa_pool spans are created via forward hooks
+        # on real model submodules, which aren't present in mocked models
     finally:
         tel._tracer = original_tracer
         tel._meter = original_meter

@@ -82,8 +82,8 @@ def test_infer_returns_predictions(client, mock_vjepa2_model):
     assert resp.status_code == 200
     data = resp.json()
     assert data["model_name"] == "vjepa2"
-    assert len(data["outputs"]) == 1
-    assert data["outputs"][0]["data"][0]["label"] == "Action 1"
+    assert len(data["clips"]) == 1
+    assert data["clips"][0]["predictions"][0]["label"] == "Action 1"
 
 
 def test_infer_custom_top_k(client, mock_vjepa2_model):
@@ -98,7 +98,7 @@ def test_infer_custom_top_k(client, mock_vjepa2_model):
         data={"top_k": "3"},
     )
     assert resp.status_code == 200
-    assert len(resp.json()["outputs"][0]["data"]) == 3
+    assert len(resp.json()["clips"][0]["predictions"]) == 3
 
 
 def test_infer_video_too_short(client, mock_vjepa2_model):

@@ -64,16 +64,21 @@
     },
     {
       "id": 3,
-      "title": "Real-Time Ratio (clip processing / RT budget)",
-      "description": "Ratio of actual clip processing time to real-time budget (16 frames @ 30fps = 0.533s). Values > 1.0 mean the system cannot keep up with real-time.",
+      "title": "Real-Time Factor (RTF)",
+      "description": "RTF = T_video / T_process. Values ≥ 1.0 mean real-time capable. RTF 2.0 = can process 2x real-time.",
       "type": "timeseries",
       "gridPos": { "x": 0, "y": 9, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "(rate(vjepa2_clip_processing_seconds_sum[5m]) / rate(vjepa2_clip_processing_seconds_count[5m])) / (16.0 / 30.0)",
-          "legendFormat": "RT ratio",
+          "expr": "(16.0 / 30.0) / (rate(vjepa2_clip_processing_seconds_sum[5m]) / rate(vjepa2_clip_processing_seconds_count[5m]))",
+          "legendFormat": "RTF",
           "refId": "A"
+        },
+        {
+          "expr": "vector(1)",
+          "legendFormat": "Real-time threshold",
+          "refId": "B"
         }
       ],
       "fieldConfig": {
@@ -82,17 +87,29 @@
           "min": 0,
           "custom": {
             "fillOpacity": 10,
-            "thresholdsStyle": { "mode": "line" }
+            "axisSoftMax": 1.5
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "value": null, "color": "green" },
-              { "value": 1.0, "color": "red" }
+              { "value": null, "color": "red" },
+              { "value": 1.0, "color": "green" }
             ]
           },
           "color": { "mode": "thresholds" }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Real-time threshold" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "text" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.fillOpacity", "value": 0 },
+              { "id": "custom.lineWidth", "value": 1 },
+              { "id": "custom.showPoints", "value": "never" }
+            ]
+          }
+        ]
       }
     },
     {
@@ -161,24 +178,34 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"decode_video\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"decode_video\"}[5m]))",
-          "legendFormat": "decode",
+          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"input_decode\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"input_decode\"}[5m]))",
+          "legendFormat": "input_decode",
           "refId": "A"
         },
         {
-          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"preprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"preprocess\"}[5m]))",
-          "legendFormat": "preprocess",
+          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"input_preprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"input_preprocess\"}[5m]))",
+          "legendFormat": "input_preprocess",
           "refId": "B"
         },
         {
-          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"inference\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"inference\"}[5m]))",
-          "legendFormat": "inference",
+          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"jepa_encode\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"jepa_encode\"}[5m]))",
+          "legendFormat": "jepa_encode",
           "refId": "C"
         },
         {
-          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"postprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"postprocess\"}[5m]))",
-          "legendFormat": "postprocess",
+          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"jepa_predict\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"jepa_predict\"}[5m]))",
+          "legendFormat": "jepa_predict",
           "refId": "D"
+        },
+        {
+          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"jepa_pool\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"jepa_pool\"}[5m]))",
+          "legendFormat": "jepa_pool",
+          "refId": "E"
+        },
+        {
+          "expr": "sum without(span_kind, status_code) (rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"output_postprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"output_postprocess\"}[5m]))",
+          "legendFormat": "output_postprocess",
+          "refId": "F"
         }
       ],
       "fieldConfig": {
@@ -201,24 +228,34 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"decode_video\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"decode_video\"}[5m])",
-          "legendFormat": "decode",
+          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"input_decode\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"input_decode\"}[5m])",
+          "legendFormat": "input_decode",
           "refId": "A"
         },
         {
-          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"preprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"preprocess\"}[5m])",
-          "legendFormat": "preprocess",
+          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"input_preprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"input_preprocess\"}[5m])",
+          "legendFormat": "input_preprocess",
           "refId": "B"
         },
         {
-          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"inference\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"inference\"}[5m])",
-          "legendFormat": "inference",
+          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"jepa_encode\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"jepa_encode\"}[5m])",
+          "legendFormat": "jepa_encode",
           "refId": "C"
         },
         {
-          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"postprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"postprocess\"}[5m])",
-          "legendFormat": "postprocess",
+          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"jepa_predict\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"jepa_predict\"}[5m])",
+          "legendFormat": "jepa_predict",
           "refId": "D"
+        },
+        {
+          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"jepa_pool\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"jepa_pool\"}[5m])",
+          "legendFormat": "jepa_pool",
+          "refId": "E"
+        },
+        {
+          "expr": "rate(traces_span_metrics_duration_milliseconds_sum{span_name=\"output_postprocess\"}[5m]) / rate(traces_span_metrics_duration_milliseconds_count{span_name=\"output_postprocess\"}[5m])",
+          "legendFormat": "output_postprocess",
+          "refId": "F"
         }
       ],
       "fieldConfig": {

@@ -23,9 +23,7 @@ from app.schemas import (
     BrowserStreamConfig,
     CompleteMessage,
     ErrorMessage,
-    InferenceResponse,
     ModelMetadata,
-    OutputTensor,
     Prediction,
     RtspStreamConfig,
     SessionMessage,
@@ -36,7 +34,7 @@ from app.schemas import (
 )
 from app.sources import browser_source, rtsp_source
 from app.telemetry import get_meter, get_tracer, init_telemetry, instrument_fastapi
-from app.video import decode_video, iter_clips
+from app.video import iter_clips
 
 # Load config
 _config_path = os.environ.get("CONFIG_PATH", "configs/model_config.yaml")
@@ -149,71 +147,71 @@ async def infer(
     )
 
     request_start = time.monotonic()
-
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
-
     tracer = get_tracer()
-    try:
-        if stride is not None:
+
+    with tracer.start_as_current_span("video_inference") as root_span:
+        # Receive and buffer the uploaded file
+        with tracer.start_as_current_span("input_receive") as receive_span:
+            receive_span.set_attribute("input.filename", file.filename or "unknown")
+            receive_span.set_attribute("input.content_type", file.content_type or "unknown")
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                content = await file.read()
+                tmp.write(content)
+                tmp_path = tmp.name
+            receive_span.set_attribute("input.size_bytes", len(content))
+
+        try:
+            # Unified clip processing path
+            # stride=None means single-clip mode (sample num_frames from video)
+            effective_stride = stride if stride is not None else num_frames
+            root_span.set_attribute("video.stride", effective_stride)
+
             clips_results = []
-            with tracer.start_as_current_span("video_inference"):
-                for clip in iter_clips(tmp_path, num_frames=num_frames, stride=stride):
-                    with tracer.start_as_current_span("clip_inference"):
-                        predictions = _model.predict(
-                            clip.frames, top_k=top_k, stride=stride
-                        )
-                    frames_total.add(clip.end_frame - clip.start_frame)
-                    clips_results.append({
-                        "clip_index": len(clips_results),
-                        "start_frame": clip.start_frame,
-                        "end_frame": clip.end_frame,
-                        "partial": (clip.end_frame - clip.start_frame) < num_frames,
-                        "predictions": [p.model_dump() for p in predictions],
-                    })
+
+            for clip in iter_clips(tmp_path, num_frames=num_frames, stride=effective_stride):
+                with tracer.start_as_current_span("clip_inference") as clip_span:
+                    clip_span.set_attribute("clip.index", len(clips_results))
+                    clip_span.set_attribute("clip.start_frame", clip.start_frame)
+                    clip_span.set_attribute("clip.end_frame", clip.end_frame)
+                    predictions = _model.predict(
+                        clip.frames, top_k=top_k, stride=effective_stride
+                    )
+
+                frames_total.add(clip.end_frame - clip.start_frame)
+                clips_results.append({
+                    "clip_index": len(clips_results),
+                    "start_frame": clip.start_frame,
+                    "end_frame": clip.end_frame,
+                    "partial": (clip.end_frame - clip.start_frame) < num_frames,
+                    "predictions": [p.model_dump() for p in predictions],
+                })
+
+                # Single-clip mode: only process first clip
+                if stride is None:
+                    break
+
+            root_span.set_attribute("video.clips_count", len(clips_results))
             requests_total.add(1, {"endpoint": "/infer", "status": "200"})
             request_duration.record(time.monotonic() - request_start)
+
             return {
                 "model_name": CONFIG["model"]["name"],
                 "model_version": "vit-l-16-ssv2",
                 "id": f"req-{uuid.uuid4().hex[:8]}",
                 "clips": clips_results,
             }
-        else:
-            with tracer.start_as_current_span("video_inference"):
-                with tracer.start_as_current_span("clip_inference"):
-                    frames = decode_video(tmp_path, num_frames=num_frames)
-                    predictions = _model.predict(frames, top_k=top_k)
-            frames_total.add(num_frames)
-            requests_total.add(1, {"endpoint": "/infer", "status": "200"})
+        except ValueError as e:
+            requests_total.add(1, {"endpoint": "/infer", "status": "400"})
             request_duration.record(time.monotonic() - request_start)
-            return InferenceResponse(
-                model_name=CONFIG["model"]["name"],
-                model_version="vit-l-16-ssv2",
-                id=f"req-{uuid.uuid4().hex[:8]}",
-                outputs=[
-                    OutputTensor(
-                        name="predictions",
-                        shape=[len(predictions)],
-                        datatype="FP32",
-                        data=predictions,
-                    )
-                ],
+            return JSONResponse({"error": str(e)}, status_code=400)
+        except Exception as e:
+            requests_total.add(1, {"endpoint": "/infer", "status": "400"})
+            request_duration.record(time.monotonic() - request_start)
+            return JSONResponse(
+                {"error": f"Could not decode video: {e}"}, status_code=400
             )
-    except ValueError as e:
-        requests_total.add(1, {"endpoint": "/infer", "status": "400"})
-        request_duration.record(time.monotonic() - request_start)
-        return JSONResponse({"error": str(e)}, status_code=400)
-    except Exception as e:
-        requests_total.add(1, {"endpoint": "/infer", "status": "400"})
-        request_duration.record(time.monotonic() - request_start)
-        return JSONResponse(
-            {"error": f"Could not decode video: {e}"}, status_code=400
-        )
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
 
 
 @app.websocket("/v2/models/vjepa2/stream")
@@ -226,20 +224,25 @@ async def stream(websocket: WebSocket):
         return
 
     meter = get_meter()
+    tracer = get_tracer()
     active_connections = meter.create_up_down_counter(
         "vjepa2_active_connections",
         description="Current WebSocket connections",
     )
     active_connections.add(1)
 
-    try:
-        raw = await websocket.receive_json()
-        config = StreamConfig(**raw)
-    except Exception as e:
-        active_connections.add(-1)
-        await websocket.send_json({"error": f"Invalid config: {e}"})
-        await websocket.close(code=1008)
-        return
+    # Receive stream configuration
+    with tracer.start_as_current_span("input_receive") as span:
+        span.set_attribute("input.type", "websocket_config")
+        try:
+            raw = await websocket.receive_json()
+            config = StreamConfig(**raw)
+            span.set_attribute("input.source", config.source)
+        except Exception as e:
+            active_connections.add(-1)
+            await websocket.send_json({"error": f"Invalid config: {e}"})
+            await websocket.close(code=1008)
+            return
 
     source_path = Path(config.source)
     allowed_dir = Path(CONFIG["server"]["allowed_source_dir"])
@@ -265,7 +268,6 @@ async def stream(websocket: WebSocket):
         return
 
     frames_processed = 0
-    tracer = get_tracer()
     try:
         with tracer.start_as_current_span("video_inference"):
             for clip in iter_clips(source_path, config.num_frames, config.stride):
@@ -305,22 +307,27 @@ async def stream_browser(websocket: WebSocket):
         return
 
     meter = get_meter()
+    tracer = get_tracer()
     active_connections = meter.create_up_down_counter(
         "vjepa2_active_connections",
         description="Current WebSocket connections",
     )
     active_connections.add(1)
 
-    try:
-        raw = await websocket.receive_json()
-        config = BrowserStreamConfig(**raw)
-    except Exception as e:
-        active_connections.add(-1)
-        await websocket.send_json(
-            ErrorMessage(message=f"Invalid config: {e}").model_dump()
-        )
-        await websocket.close(code=1008)
-        return
+    # Receive stream configuration
+    with tracer.start_as_current_span("input_receive") as span:
+        span.set_attribute("input.type", "browser_stream_config")
+        try:
+            raw = await websocket.receive_json()
+            config = BrowserStreamConfig(**raw)
+            span.set_attribute("input.media_type", config.media_type or "camera")
+        except Exception as e:
+            active_connections.add(-1)
+            await websocket.send_json(
+                ErrorMessage(message=f"Invalid config: {e}").model_dump()
+            )
+            await websocket.close(code=1008)
+            return
     max_sessions = CONFIG.get("streaming", {}).get("max_concurrent_sessions", 10)
     if len(_sessions) >= max_sessions:
         active_connections.add(-1)
@@ -384,22 +391,27 @@ async def stream_rtsp(websocket: WebSocket):
         return
 
     meter = get_meter()
+    tracer = get_tracer()
     active_connections = meter.create_up_down_counter(
         "vjepa2_active_connections",
         description="Current WebSocket connections",
     )
     active_connections.add(1)
 
-    try:
-        raw = await websocket.receive_json()
-        config = RtspStreamConfig(**raw)
-    except Exception as e:
-        active_connections.add(-1)
-        await websocket.send_json(
-            ErrorMessage(message=f"Invalid config: {e}").model_dump()
-        )
-        await websocket.close(code=1008)
-        return
+    # Receive stream configuration
+    with tracer.start_as_current_span("input_receive") as span:
+        span.set_attribute("input.type", "rtsp_stream_config")
+        try:
+            raw = await websocket.receive_json()
+            config = RtspStreamConfig(**raw)
+            span.set_attribute("input.rtsp_url", config.rtsp_url)
+        except Exception as e:
+            active_connections.add(-1)
+            await websocket.send_json(
+                ErrorMessage(message=f"Invalid config: {e}").model_dump()
+            )
+            await websocket.close(code=1008)
+            return
     max_sessions = CONFIG.get("streaming", {}).get("max_concurrent_sessions", 10)
     if len(_sessions) >= max_sessions:
         active_connections.add(-1)
