@@ -238,6 +238,42 @@ class JaegerClient:
 
         return durations
 
+    def extract_l_sys(self, traces: list[Trace]) -> list[float]:
+        """Extract true L_sys values from traces with observation timestamps.
+
+        L_sys = span_end_time - obs_timestamp_ms
+
+        Only traces with the input.obs_timestamp_ms attribute are included.
+
+        Args:
+            traces: List of traces to analyze
+
+        Returns:
+            List of L_sys values in milliseconds
+        """
+        l_sys_values: list[float] = []
+
+        for trace in traces:
+            root = trace.root_span
+            if root is None:
+                continue
+
+            # Look for obs_timestamp in root span tags
+            obs_ts_ms = root.tags.get("input.obs_timestamp_ms")
+            if obs_ts_ms is None:
+                continue
+
+            # Calculate L_sys: prediction_time - observation_time
+            # span end time = start_time_us + duration_us (in microseconds)
+            span_end_us = root.start_time_us + root.duration_us
+            span_end_ms = span_end_us / 1000.0
+
+            # obs_timestamp is in milliseconds
+            l_sys_ms = span_end_ms - float(obs_ts_ms)
+            l_sys_values.append(l_sys_ms)
+
+        return l_sys_values
+
     def wait_for_traces(
         self,
         service: str,

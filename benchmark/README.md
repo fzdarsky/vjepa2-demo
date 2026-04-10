@@ -7,6 +7,8 @@ Latency and throughput benchmarks for V-JEPA2 inference, aligned with the [JWMSP
 | Benchmark | Measures | Use when |
 |-----------|----------|----------|
 | `benchmark.py` | External load gen + OTel trace collection | Production benchmarking, containerized deployments |
+| `benchmark.py --mode saturation` | Throughput vs latency curve | Capacity planning, find concurrency limits |
+| `benchmark.py --mode soak` | RTF drift over time | Stability testing, detect memory leaks |
 | `benchmark_whitebox.py` | In-process per-stage latency | Development, debugging, quick A/B tests |
 | `benchmark_stream.py` | Throughput, realtime ratio, pipeline parallelism | Capacity planning |
 | `benchmark_coldstart.py` | Model load time, first inference overhead | Serverless/scale-to-zero |
@@ -52,6 +54,68 @@ python -m benchmark.benchmark \
 ```
 
 Collects timing from OTel traces via Jaeger, measuring actual server behavior.
+
+#### Saturation Test Mode
+
+Find the throughput ceiling by ramping up concurrency:
+
+```bash
+python -m benchmark.benchmark \
+    --target http://localhost:8000 \
+    --video samples/sample.mp4 \
+    --mode saturation \
+    --concurrency-levels 1,2,4,8,16
+```
+
+Output:
+```
+Saturation test:
+  Conc   Throughput       Mean        P95        P99   Errors
+--------------------------------------------------------------
+     1       1.52/s    657.8ms    665.2ms    668.1ms     0.0%
+     2       2.89/s    691.2ms    720.3ms    735.8ms     0.0%
+     4       4.12/s    970.5ms   1105.2ms   1180.3ms     0.0%
+     8       4.35/s   1838.2ms   2450.1ms   2680.5ms     0.0% <-- saturation
+    16       4.21/s   3795.5ms   4520.3ms   4850.2ms     2.5%
+
+Peak throughput:       4.35 req/sec
+Saturation point:      concurrency=8
+Recommendation:        Use concurrency < 8 for stable latency
+```
+
+#### Soak Test Mode
+
+Run sustained load to detect performance drift over time:
+
+```bash
+python -m benchmark.benchmark \
+    --target http://localhost:8000 \
+    --video samples/sample.mp4 \
+    --mode soak \
+    --duration 300 \
+    --report-interval 30 \
+    --concurrency 2
+```
+
+Tracks RTF drift and latency jitter to identify:
+
+- Memory leaks
+- Thermal throttling
+- Resource exhaustion
+
+#### True L_sys Measurement
+
+For accurate end-to-end latency measurement, inject timestamps:
+
+```bash
+python -m benchmark.benchmark \
+    --target http://localhost:8000 \
+    --video samples/sample.mp4 \
+    --jaeger http://localhost:16686 \
+    --inject-timestamp
+```
+
+This embeds an observation timestamp in each request. The server records it as a span attribute, allowing calculation of true L_sys (prediction time - observation time) from traces.
 
 ### benchmark_whitebox.py — In-Process Testing
 

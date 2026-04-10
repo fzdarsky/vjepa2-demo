@@ -62,6 +62,12 @@ Each inference request is tracked using a unique `TraceID` that persists through
 | `render_annotate` | Overlay predictions on frames. |
 | `render_stream` | Encode and deliver output stream. |
 
+**Lifecycle spans** (server startup, standalone traces):
+
+| Span Name | Key Attributes | Description |
+| :--- | :--- | :--- |
+| `init_model_load` | `model.path`, `model.device`, `model.load_duration_s` | Model loading at server startup. Standalone trace for cold start analysis. |
+
 ### The Load Generator (The Harness)
 
 The harness acts as a **Deterministic Streamer**:

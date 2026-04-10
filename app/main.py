@@ -56,17 +56,27 @@ async def _load_model_background():
     )
 
     meter = get_meter()
+    tracer = get_tracer()
+
     model_load_gauge = meter.create_gauge(
         "vjepa2_model_load_duration_seconds",
         description="Time to load model at startup",
         unit="s",
     )
 
-    load_start = time.monotonic()
-    _model = await asyncio.to_thread(
-        VJepa2Model, model_path=model_path, device=device
-    )
-    model_load_gauge.set(time.monotonic() - load_start)
+    # Standalone span for model loading (server lifecycle event)
+    with tracer.start_as_current_span("init_model_load") as span:
+        span.set_attribute("model.path", model_path)
+        span.set_attribute("model.device", device)
+
+        load_start = time.monotonic()
+        _model = await asyncio.to_thread(
+            VJepa2Model, model_path=model_path, device=device
+        )
+        load_duration = time.monotonic() - load_start
+
+        span.set_attribute("model.load_duration_s", round(load_duration, 3))
+        model_load_gauge.set(load_duration)
 
 
 @asynccontextmanager
@@ -127,6 +137,7 @@ async def infer(
     top_k: int = Form(default=CONFIG["inference"]["default_top_k"]),
     num_frames: int = Form(default=CONFIG["inference"]["num_frames"]),
     stride: int | None = Form(default=None),
+    obs_timestamp_ms: int | None = Form(default=None),
 ):
     if _model is None:
         return JSONResponse({"error": "Model not ready"}, status_code=503)
@@ -150,6 +161,10 @@ async def infer(
     tracer = get_tracer()
 
     with tracer.start_as_current_span("video_inference") as root_span:
+        # Record observation timestamp for L_sys calculation (if provided)
+        if obs_timestamp_ms is not None:
+            root_span.set_attribute("input.obs_timestamp_ms", obs_timestamp_ms)
+
         # Receive and buffer the uploaded file
         with tracer.start_as_current_span("input_receive") as receive_span:
             receive_span.set_attribute("input.filename", file.filename or "unknown")
