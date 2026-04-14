@@ -1,6 +1,6 @@
 transformers>=4.53.0
 pillow>=11.0
-av>=14.0.0
+av>=13.1.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 python-multipart>=0.0.20
