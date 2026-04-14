@@ -1,23 +1,25 @@
 services:
   vjepa2-server-cuda:
     profiles: [cuda]
-    image: vjepa2-server-cuda:latest
+    image: quay.io/fzdarsky/vjepa2-server-cuda:latest
     build:
       context: .
       dockerfile: Containerfile.cuda
     ports:
       - "8080:8080"
+    devices:
+      - nvidia.com/gpu=all
     volumes:
       - vjepa2-model-vitl:/model:ro
-      - ./samples:/input:ro
-      - ./output:/output
+      - ./samples:/input:ro,z
+      - ./output:/output:z
     environment:
       - DEVICE=cuda
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 
   vjepa2-server-cpu:
     profiles: [cpu]
-    image: vjepa2-server-cpu:latest
+    image: quay.io/fzdarsky/vjepa2-server-cpu:latest
     build:
       context: .
       dockerfile: Containerfile.cpu
@@ -25,8 +27,8 @@ services:
       - "8080:8080"
     volumes:
       - vjepa2-model-vitl:/model:ro
-      - ./samples:/input:ro
-      - ./output:/output
+      - ./samples:/input:ro,z
+      - ./output:/output:z
     environment:
       - DEVICE=cpu
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -38,20 +40,20 @@ services:
       - "4317:4317"
       - "8889:8889"
     volumes:
-      - ./configs/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ./configs/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro,z
 
   prometheus:
     profiles: [observability]
-    image: prom/prometheus:latest
+    image: docker.io/prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
       - prometheus-data:/prometheus
-      - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yml:ro,z
 
   jaeger:
     profiles: [observability]
-    image: jaegertracing/jaeger:latest
+    image: docker.io/jaegertracing/jaeger:latest
     ports:
       - "16686:16686"
       - "4318:4317"
@@ -67,19 +69,16 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     volumes:
-      - ./configs/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
-      - ./configs/grafana/dashboards/dashboard.yaml:/etc/grafana/provisioning/dashboards/dashboard.yaml:ro
-      - ./configs/grafana/dashboards/vjepa2.json:/var/lib/grafana/dashboards/vjepa2.json:ro
+      - ./configs/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro,z
+      - ./configs/grafana/dashboards/dashboard.yaml:/etc/grafana/provisioning/dashboards/dashboard.yaml:ro,z
+      - ./configs/grafana/dashboards/vjepa2.json:/var/lib/grafana/dashboards/vjepa2.json:ro,z
       - grafana-data:/var/lib/grafana
 
   dcgm-exporter:
     profiles: [gpu-metrics]
     image: nvidia/dcgm-exporter:latest
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
+    devices:
+      - nvidia.com/gpu=all
     ports:
       - "9400:9400"
 

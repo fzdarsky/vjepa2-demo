@@ -9,8 +9,3 @@ docs/research/
 model-staging/
 output/
 samples/
-
-# Terraform
-tests/ec2-gpu/.terraform/
-tests/ec2-gpu/terraform.tfstate*
-tests/ec2-gpu/.terraform.lock.hcl

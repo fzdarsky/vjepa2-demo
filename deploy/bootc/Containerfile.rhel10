@@ -1,0 +1,44 @@
+FROM registry.redhat.io/rhel10/rhel-bootc:10.0
+
+# Install pre-compiled NVIDIA drivers + container toolkit from Red Hat repos
+# nvidia-open meta-package pulls in the correct kmod for the kernel
+RUN dnf -y \
+    --enablerepo=rhel-10-for-x86_64-extensions-rpms \
+    --enablerepo=rhel-10-for-x86_64-supplementary-rpms \
+    install nvidia-open nvidia-container-toolkit
+
+# Blacklist nouveau driver
+RUN echo -e "blacklist nouveau\noptions nouveau modeset=0" > /etc/modprobe.d/blacklist-nouveau.conf
+
+# Regenerate initramfs with nouveau blacklisted
+RUN KERNEL_VERSION=$(rpm -q kernel --qf '%{VERSION}-%{RELEASE}.%{ARCH}') && \
+    dracut -f /boot/initramfs-${KERNEL_VERSION}.img ${KERNEL_VERSION}
+
+# Install runtime dependencies + cloud-init for EC2
+RUN dnf install -y \
+    podman \
+    git \
+    python3 \
+    python3-pip \
+    cloud-init \
+    && dnf clean all
+
+# Enable cloud-init for EC2
+RUN systemctl enable cloud-init cloud-init-local cloud-config cloud-final
+
+# Create ec2-user (AWS standard) - cloud-init will inject SSH keys
+RUN useradd -m -G wheel ec2-user && \
+    echo "ec2-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ec2-user
+
+# Configure cloud-init to use ec2-user instead of default cloud-user
+RUN echo -e "system_info:\n  default_user:\n    name: ec2-user" > /etc/cloud/cloud.cfg.d/99-ec2-user.cfg
+
+# Install podman-compose
+RUN pip3 install podman-compose
+
+# Create systemd service to generate CDI spec on boot
+COPY nvidia-cdi-generate.service /etc/systemd/system/
+RUN systemctl enable nvidia-cdi-generate.service
+
+# Enable required services
+RUN systemctl enable podman.socket
