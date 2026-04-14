@@ -43,9 +43,9 @@
         <template x-if="tab === 'camera'">
           <div>
             <video x-ref="cameraPreview" autoplay muted playsinline class="preview" x-show="cameraAvailable && !cameraError"></video>
-            <div x-show="cameraError" class="preview placeholder" style="color: #f44;">
-              <div style="font-size: 24px;">&#128247;</div>
-              <div x-text="cameraError"></div>
+            <div x-show="cameraError" class="preview placeholder" style="color: #f44; text-align: center;">
+              <div style="font-size: 24px; margin-bottom: 8px;">&#128247;</div>
+              <div x-text="cameraError" style="margin-bottom: 4px;"></div>
               <div class="hint" x-show="cameraError === 'Camera requires HTTPS'">Use localhost or deploy with TLS</div>
             </div>
           </div>

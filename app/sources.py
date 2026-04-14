@@ -5,11 +5,13 @@ import io
 import json
 import logging
 import threading
+import time
 
 import av
 import numpy as np
 
 from app.pipeline import StreamSession
+from app.telemetry import get_tracer
 
 logger = logging.getLogger(__name__)
 
@@ -105,41 +107,58 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
 
     def _decode_into_queue(source, fmt=None):
         """Decode video from source, pushing frames into frame_queue."""
+        tracer = get_tracer()
+        frame_count = 0
         try:
             kwargs = {"format": fmt} if fmt else {}
-            container = av.open(source, **kwargs)
-            for frame in container.decode(video=0):
-                arr = frame.to_ndarray(format="rgb24")
-                asyncio.run_coroutine_threadsafe(
-                    frame_queue.put(arr), loop
-                ).result()
-            container.close()
+            with tracer.start_as_current_span("source_decode") as span:
+                container = av.open(source, **kwargs)
+                stream = container.streams.video[0]
+                span.set_attribute("video.codec", stream.codec_context.name)
+                span.set_attribute("video.width", stream.width)
+                span.set_attribute("video.height", stream.height)
+                for frame in container.decode(video=0):
+                    arr = frame.to_ndarray(format="rgb24")
+                    asyncio.run_coroutine_threadsafe(
+                        frame_queue.put(arr), loop
+                    ).result()
+                    frame_count += 1
+                container.close()
+                span.set_attribute("video.frames", frame_count)
         except Exception as e:
             logger.warning("Decoder error: %s", e)
         finally:
+            logger.info("Decoded %d frames", frame_count)
             asyncio.run_coroutine_threadsafe(
                 frame_queue.put(None), loop
             ).result()
+
+    tracer = get_tracer()
 
     if media_type:
         # File upload: collect all data, then decode from seekable BytesIO
         logger.info("File upload mode, media_type=%s", media_type)
         chunks = []
-        while True:
-            msg = await websocket.receive()
-            if msg.get("type") == "websocket.disconnect":
-                logger.debug("WebSocket disconnected during upload")
-                break
-            if "text" in msg and msg["text"]:
-                data = json.loads(msg["text"])
-                if data.get("action") == "stop":
-                    logger.debug("Received stop action")
+        with tracer.start_as_current_span("source_buffer") as buffer_span:
+            buffer_span.set_attribute("source.type", "upload")
+            buffer_span.set_attribute("source.media_type", media_type or "unknown")
+            while True:
+                msg = await websocket.receive()
+                if msg.get("type") == "websocket.disconnect":
+                    logger.debug("WebSocket disconnected during upload")
                     break
-                continue
-            if "bytes" in msg and msg["bytes"]:
-                chunks.append(msg["bytes"])
+                if "text" in msg and msg["text"]:
+                    data = json.loads(msg["text"])
+                    if data.get("action") == "stop":
+                        logger.debug("Received stop action")
+                        break
+                    continue
+                if "bytes" in msg and msg["bytes"]:
+                    chunks.append(msg["bytes"])
+            total_bytes = sum(len(c) for c in chunks)
+            buffer_span.set_attribute("source.bytes", total_bytes)
+            buffer_span.set_attribute("source.chunks", len(chunks))
 
-        total_bytes = sum(len(c) for c in chunks)
         logger.info("Received %d chunks, total %d bytes", len(chunks), total_bytes)
 
         if not chunks:
