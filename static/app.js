@@ -46,17 +46,9 @@ function vjepa2App() {
         this.cameraError = 'Camera API not available';
         return;
       }
-      try {
-        // Check if we can get camera permissions
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasCamera = devices.some(d => d.kind === 'videoinput');
-        this.cameraAvailable = hasCamera;
-        if (!hasCamera) {
-          this.cameraError = 'No camera detected';
-        }
-      } catch (err) {
-        this.cameraError = 'Camera access error';
-      }
+      // If we're in a secure context with mediaDevices API, assume camera might be available
+      // The actual getUserMedia call in startCamera() will handle permission/detection errors
+      this.cameraAvailable = true;
     },
 
     async checkModelReady() {

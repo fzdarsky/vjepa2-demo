@@ -368,7 +368,12 @@ async def stream_browser(websocket: WebSocket):
     thumb_w = CONFIG.get("streaming", {}).get("thumbnail_width", 160)
     worker_task = asyncio.create_task(inference_worker(session, _model, on_result, thumbnail_width=thumb_w))
     try:
-        await browser_source(websocket, session, on_clip_queued=on_clip_queued, media_type=config.media_type)
+        from opentelemetry import context as otel_context
+        with tracer.start_as_current_span("stream_inference") as stream_span:
+            stream_span.set_attribute("session.id", session.session_id)
+            stream_span.set_attribute("input.type", config.media_type or "camera")
+            parent_ctx = otel_context.get_current()
+            await browser_source(websocket, session, on_clip_queued=on_clip_queued, media_type=config.media_type, parent_context=parent_ctx)
         await worker_task
     except WebSocketDisconnect:
         session.status = "processing"

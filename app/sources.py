@@ -68,7 +68,7 @@ _MIME_TO_PYAV_FORMAT = {
 }
 
 
-async def browser_source(websocket, session: StreamSession, on_clip_queued=None, media_type: str | None = None) -> None:
+async def browser_source(websocket, session: StreamSession, on_clip_queued=None, media_type: str | None = None, parent_context=None) -> None:
     """Receive binary video chunks from a browser WebSocket.
 
     Expects binary messages containing video data (webm chunks from
@@ -82,10 +82,17 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
 
     on_clip_queued: optional async callback(clips_queued: int) called
     each time a clip is added to the inference queue.
+    parent_context: optional OpenTelemetry context for trace linking.
     """
+    from opentelemetry import context as otel_context
+
     session.status = "ingesting"
     frame_queue: asyncio.Queue = asyncio.Queue(maxsize=32)
     loop = asyncio.get_running_loop()
+    tracer = get_tracer()
+
+    # Use parent context if provided, otherwise use current context
+    ctx = parent_context or otel_context.get_current()
 
     async def _queue_clip(clip):
         await session.clip_queue.put(clip)
@@ -105,18 +112,18 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
             for clip in clips:
                 await _queue_clip(clip)
 
-    def _decode_into_queue(source, fmt=None):
+    def _decode_into_queue(source, fmt=None, trace_ctx=None):
         """Decode video from source, pushing frames into frame_queue."""
-        tracer = get_tracer()
         frame_count = 0
         try:
             kwargs = {"format": fmt} if fmt else {}
-            with tracer.start_as_current_span("source_decode") as span:
+            # Link to parent trace context
+            with tracer.start_as_current_span("input_decode", context=trace_ctx) as span:
                 container = av.open(source, **kwargs)
                 stream = container.streams.video[0]
-                span.set_attribute("video.codec", stream.codec_context.name)
-                span.set_attribute("video.width", stream.width)
-                span.set_attribute("video.height", stream.height)
+                span.set_attribute("input.codec", stream.codec_context.name)
+                span.set_attribute("input.width", stream.width)
+                span.set_attribute("input.height", stream.height)
                 for frame in container.decode(video=0):
                     arr = frame.to_ndarray(format="rgb24")
                     asyncio.run_coroutine_threadsafe(
@@ -124,7 +131,7 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
                     ).result()
                     frame_count += 1
                 container.close()
-                span.set_attribute("video.frames", frame_count)
+                span.set_attribute("input.frames", frame_count)
         except Exception as e:
             logger.warning("Decoder error: %s", e)
         finally:
@@ -133,15 +140,13 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
                 frame_queue.put(None), loop
             ).result()
 
-    tracer = get_tracer()
-
     if media_type:
         # File upload: collect all data, then decode from seekable BytesIO
         logger.info("File upload mode, media_type=%s", media_type)
         chunks = []
-        with tracer.start_as_current_span("source_buffer") as buffer_span:
-            buffer_span.set_attribute("source.type", "upload")
-            buffer_span.set_attribute("source.media_type", media_type or "unknown")
+        with tracer.start_as_current_span("input_receive", context=ctx) as receive_span:
+            receive_span.set_attribute("input.type", "upload")
+            receive_span.set_attribute("input.media_type", media_type or "unknown")
             while True:
                 msg = await websocket.receive()
                 if msg.get("type") == "websocket.disconnect":
@@ -156,8 +161,10 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
                 if "bytes" in msg and msg["bytes"]:
                     chunks.append(msg["bytes"])
             total_bytes = sum(len(c) for c in chunks)
-            buffer_span.set_attribute("source.bytes", total_bytes)
-            buffer_span.set_attribute("source.chunks", len(chunks))
+            receive_span.set_attribute("input.size_bytes", total_bytes)
+            receive_span.set_attribute("input.chunks", len(chunks))
+            # Capture context for decode span
+            decode_ctx = otel_context.get_current()
 
         logger.info("Received %d chunks, total %d bytes", len(chunks), total_bytes)
 
@@ -170,7 +177,7 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
         file_data = io.BytesIO(b"".join(chunks))
         fmt = _MIME_TO_PYAV_FORMAT.get(media_type)
         logger.info("Decoding with format=%s (from media_type=%s)", fmt, media_type)
-        decoder_future = loop.run_in_executor(None, _decode_into_queue, file_data, fmt)
+        decoder_future = loop.run_in_executor(None, _decode_into_queue, file_data, fmt, decode_ctx)
         await _process_frames()
         await asyncio.wrap_future(decoder_future)
     else:
@@ -178,7 +185,7 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
         stream_buf = _StreamingBuffer()
 
         decoder_future = loop.run_in_executor(
-            None, _decode_into_queue, stream_buf, "matroska"
+            None, _decode_into_queue, stream_buf, "matroska", ctx
         )
 
         async def _receive_chunks():

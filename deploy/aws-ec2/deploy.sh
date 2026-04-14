@@ -108,8 +108,8 @@ ensure_security_group() {
             --query "GroupId" \
             --output text)
 
-        # SSH, API, Grafana, Prometheus, Jaeger
-        for port in 22 8080 3000 9090 16686; do
+        # SSH, API (HTTP+HTTPS), Grafana, Prometheus, Jaeger
+        for port in 22 8080 8443 3000 9090 16686; do
             aws ec2 authorize-security-group-ingress \
                 --region "$AWS_REGION" \
                 --group-id "$sg_id" \
@@ -167,6 +167,16 @@ USERDATA
 cd /home/ec2-user
 git clone https://github.com/fzdarsky/vjepa2-demo.git
 cd vjepa2-demo
+
+# Generate self-signed TLS certificate for HTTPS
+mkdir -p certs
+PUBLIC_HOSTNAME=\$(curl -s http://169.254.169.254/latest/meta-data/public-hostname || echo "localhost")
+PUBLIC_IP=\$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo "127.0.0.1")
+openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes \
+    -subj "/CN=\$PUBLIC_HOSTNAME" \
+    -addext "subjectAltName=DNS:\$PUBLIC_HOSTNAME,DNS:localhost,IP:\$PUBLIC_IP,IP:127.0.0.1"
+chmod 644 certs/*.pem
+
 chown -R ec2-user:ec2-user /home/ec2-user/vjepa2-demo
 
 # Pull images
@@ -191,15 +201,15 @@ podman volume create --driver image --opt image=${model_image} vjepa2-model-vitl
 cd /home/ec2-user/vjepa2-demo
 USERDATA
 
-    # Generate profile flags
-    echo "podman compose --profile ${profiles//,/ --profile } up -d"
+    # Generate profile flags with SSL enabled
+    echo "SSL_KEYFILE=/certs/key.pem SSL_CERTFILE=/certs/cert.pem podman compose --profile ${profiles//,/ --profile } up -d"
 
     cat <<'USERDATA'
 
 # Wait for server
 echo "Waiting for server to be ready..."
 for i in {1..60}; do
-    if curl -sf http://localhost:8080/v2/health/ready; then
+    if curl -sf --insecure https://localhost:8080/v2/health/ready; then
         echo "Server is ready!"
         break
     fi
@@ -208,7 +218,7 @@ done
 
 echo "=== Deployment Complete ==="
 PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-echo "Server:     http://$PUBLIC_IP:8080"
+echo "Server:     https://$PUBLIC_IP:8080 (self-signed cert)"
 echo "Grafana:    http://$PUBLIC_IP:3000"
 echo "Jaeger:     http://$PUBLIC_IP:16686"
 echo "Prometheus: http://$PUBLIC_IP:9090"
@@ -287,7 +297,7 @@ SSH:        ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$public_ip
 Deploy log: ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$public_ip 'sudo tail -f /var/log/vjepa2-deploy.log'
 
 After cloud-init completes (~3 min):
-  Inference: http://$public_ip:8080
+  Inference: https://$public_ip:8080 (self-signed cert)
   Grafana:   http://$public_ip:3000
   Jaeger:    http://$public_ip:16686
 EOF
@@ -326,7 +336,7 @@ cmd_status() {
         cat <<EOF
 
 URLs:
-  Inference: http://$public_ip:8080
+  Inference: https://$public_ip:8080 (self-signed cert)
   Grafana:   http://$public_ip:3000
   Jaeger:    http://$public_ip:16686
 EOF

@@ -13,9 +13,12 @@ services:
       - vjepa2-model-vitl:/model:ro
       - ./samples:/input:ro,z
       - ./output:/output:z
+      - ./certs:/certs:ro,z
     environment:
       - DEVICE=cuda
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SSL_KEYFILE=${SSL_KEYFILE:-}
+      - SSL_CERTFILE=${SSL_CERTFILE:-}
 
   vjepa2-server-cpu:
     profiles: [cpu]
@@ -29,9 +32,12 @@ services:
       - vjepa2-model-vitl:/model:ro
       - ./samples:/input:ro,z
       - ./output:/output:z
+      - ./certs:/certs:ro,z
     environment:
       - DEVICE=cpu
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SSL_KEYFILE=${SSL_KEYFILE:-}
+      - SSL_CERTFILE=${SSL_CERTFILE:-}
 
   otel-collector:
     profiles: [observability]
