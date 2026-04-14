@@ -14,7 +14,17 @@ VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 def cmd_serve(args):
     """Start FastAPI server via uvicorn."""
     import uvicorn
-    uvicorn.run("app.main:app", host=args.host, port=args.port, ws_max_size=None)
+    # CLI args take precedence, then environment variables
+    ssl_keyfile = getattr(args, 'ssl_keyfile', None) or os.environ.get('SSL_KEYFILE')
+    ssl_certfile = getattr(args, 'ssl_certfile', None) or os.environ.get('SSL_CERTFILE')
+    uvicorn.run(
+        "app.main:app",
+        host=args.host,
+        port=args.port,
+        ws_max_size=None,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+    )
 
 
 def _load_model():
@@ -142,6 +152,8 @@ def main():
     serve_parser = subparsers.add_parser("serve", help="Start API server")
     serve_parser.add_argument("--host", default="0.0.0.0")
     serve_parser.add_argument("--port", type=int, default=8080)
+    serve_parser.add_argument("--ssl-keyfile", help="Path to SSL private key")
+    serve_parser.add_argument("--ssl-certfile", help="Path to SSL certificate")
 
     # infer
     infer_parser = subparsers.add_parser("infer", help="Run inference on video files")
@@ -164,6 +176,8 @@ def main():
         args.command = "serve"
         args.host = "0.0.0.0"
         args.port = 8080
+        args.ssl_keyfile = None
+        args.ssl_certfile = None
 
     commands = {
         "serve": cmd_serve,

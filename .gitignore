@@ -9,3 +9,6 @@ docs/research/
 model-staging/
 output/
 samples/
+build-logs/
+model
+model-vitg/

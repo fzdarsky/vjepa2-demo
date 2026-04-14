@@ -21,6 +21,8 @@ function vjepa2App() {
     recordingSeconds: 0,
     totalClips: 0,
     _recordingTimer: null,
+    cameraAvailable: false,
+    cameraError: '',
 
     get previewUrl() {
       if (this.sessionId) {
@@ -31,6 +33,30 @@ function vjepa2App() {
 
     init() {
       this.checkModelReady();
+      this.checkCameraAvailable();
+    },
+
+    async checkCameraAvailable() {
+      // Camera requires secure context (HTTPS or localhost)
+      if (!window.isSecureContext) {
+        this.cameraError = 'Camera requires HTTPS';
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        this.cameraError = 'Camera API not available';
+        return;
+      }
+      try {
+        // Check if we can get camera permissions
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasCamera = devices.some(d => d.kind === 'videoinput');
+        this.cameraAvailable = hasCamera;
+        if (!hasCamera) {
+          this.cameraError = 'No camera detected';
+        }
+      } catch (err) {
+        this.cameraError = 'Camera access error';
+      }
     },
 
     async checkModelReady() {
@@ -164,18 +190,38 @@ function vjepa2App() {
       const CHUNK = 1024 * 1024;
       for (let offset = 0; offset < buffer.byteLength; offset += CHUNK) {
         this.ws.send(buffer.slice(offset, offset + CHUNK));
+        // Wait for buffer to drain before sending more
+        while (this.ws.bufferedAmount > CHUNK * 2) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }
+      // Wait for all data to be sent before signaling stop
+      while (this.ws.bufferedAmount > 0) {
+        await new Promise(r => setTimeout(r, 50));
       }
       this.ws.send(JSON.stringify({ action: 'stop' }));
       this.recording = false;
     },
 
     async startCamera() {
+      // Check for secure context first
+      if (!window.isSecureContext) {
+        this.cameraError = 'Camera requires HTTPS';
+        console.error('Camera requires secure context (HTTPS or localhost)');
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        this.cameraError = 'Camera API not available';
+        console.error('getUserMedia not supported');
+        return;
+      }
       try {
         this.cameraStream = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480 },
           audio: false,
         });
       } catch (err) {
+        this.cameraError = err.name === 'NotAllowedError' ? 'Camera permission denied' : 'Camera error: ' + err.message;
         console.error('Camera access denied:', err);
         return;
       }

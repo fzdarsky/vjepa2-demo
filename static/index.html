@@ -42,7 +42,12 @@
         </template>
         <template x-if="tab === 'camera'">
           <div>
-            <video x-ref="cameraPreview" autoplay muted playsinline class="preview"></video>
+            <video x-ref="cameraPreview" autoplay muted playsinline class="preview" x-show="cameraAvailable && !cameraError"></video>
+            <div x-show="cameraError" class="preview placeholder" style="color: #f44;">
+              <div style="font-size: 24px;">&#128247;</div>
+              <div x-text="cameraError"></div>
+              <div class="hint" x-show="cameraError === 'Camera requires HTTPS'">Use localhost or deploy with TLS</div>
+            </div>
           </div>
         </template>
         <template x-if="tab === 'rtsp'">
@@ -53,7 +58,7 @@
           </div>
         </template>
         <div class="controls">
-          <button class="btn primary" @click="start()" :disabled="streaming || (tab === 'upload' && !selectedFile) || (tab === 'rtsp' && !rtspUrl)">
+          <button class="btn primary" @click="start()" :disabled="streaming || (tab === 'upload' && !selectedFile) || (tab === 'rtsp' && !rtspUrl) || (tab === 'camera' && (!cameraAvailable || cameraError))">
             <span x-text="tab === 'rtsp' ? 'Connect' : 'Start'"></span>
           </button>
           <button class="btn" @click="stop()" :disabled="!recording">

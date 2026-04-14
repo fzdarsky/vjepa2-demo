@@ -123,26 +123,34 @@ async def browser_source(websocket, session: StreamSession, on_clip_queued=None,
 
     if media_type:
         # File upload: collect all data, then decode from seekable BytesIO
+        logger.info("File upload mode, media_type=%s", media_type)
         chunks = []
         while True:
             msg = await websocket.receive()
             if msg.get("type") == "websocket.disconnect":
+                logger.debug("WebSocket disconnected during upload")
                 break
             if "text" in msg and msg["text"]:
                 data = json.loads(msg["text"])
                 if data.get("action") == "stop":
+                    logger.debug("Received stop action")
                     break
                 continue
             if "bytes" in msg and msg["bytes"]:
                 chunks.append(msg["bytes"])
 
+        total_bytes = sum(len(c) for c in chunks)
+        logger.info("Received %d chunks, total %d bytes", len(chunks), total_bytes)
+
         if not chunks:
+            logger.warning("No data received for file upload")
             session.status = "processing"
             await session.clip_queue.put(None)
             return
 
         file_data = io.BytesIO(b"".join(chunks))
         fmt = _MIME_TO_PYAV_FORMAT.get(media_type)
+        logger.info("Decoding with format=%s (from media_type=%s)", fmt, media_type)
         decoder_future = loop.run_in_executor(None, _decode_into_queue, file_data, fmt)
         await _process_frames()
         await asyncio.wrap_future(decoder_future)
