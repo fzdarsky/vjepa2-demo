@@ -58,7 +58,7 @@
           </div>
         </template>
         <div class="controls">
-          <button class="btn primary" @click="start()" :disabled="streaming || (tab === 'upload' && !selectedFile) || (tab === 'rtsp' && !rtspUrl) || (tab === 'camera' && (!cameraAvailable || cameraError))">
+          <button class="btn primary" @click="start()" :disabled="streaming || (tab === 'upload' && !selectedFile) || (tab === 'rtsp' && !rtspUrl) || (tab === 'camera' && (!cameraAvailable || !!cameraError))">
             <span x-text="tab === 'rtsp' ? 'Connect' : 'Start'"></span>
           </button>
           <button class="btn" @click="stop()" :disabled="!recording">

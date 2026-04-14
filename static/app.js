@@ -49,6 +49,7 @@ function vjepa2App() {
       // If we're in a secure context with mediaDevices API, assume camera might be available
       // The actual getUserMedia call in startCamera() will handle permission/detection errors
       this.cameraAvailable = true;
+      this.cameraError = '';
     },
 
     async checkModelReady() {
@@ -199,12 +200,10 @@ function vjepa2App() {
       // Check for secure context first
       if (!window.isSecureContext) {
         this.cameraError = 'Camera requires HTTPS';
-        console.error('Camera requires secure context (HTTPS or localhost)');
         return;
       }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         this.cameraError = 'Camera API not available';
-        console.error('getUserMedia not supported');
         return;
       }
       try {
@@ -214,7 +213,6 @@ function vjepa2App() {
         });
       } catch (err) {
         this.cameraError = err.name === 'NotAllowedError' ? 'Camera permission denied' : 'Camera error: ' + err.message;
-        console.error('Camera access denied:', err);
         return;
       }
       this.$nextTick(() => {
