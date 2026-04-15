@@ -83,7 +83,47 @@ The harness acts as a **Deterministic Streamer**:
     * **Goal:** Measure the stability of $L_{sys}$ and identify "drift" over a 30-minute window (Soak Test).
 3. **Degraded Input Test:** Introduce artificial packet loss or variable framerates to test the robustness of the JEPA context-filling logic.
 
-## 6. Output & Reporting
+## 6. Standard Benchmark Parameters
+
+For reproducible benchmarking across environments, the following standard parameters are used:
+
+| Parameter | Default | Rationale |
+| :--- | :--- | :--- |
+| Requests | 20 | Sufficient for stable percentiles without excessive runtime |
+| Concurrency levels | 1, 4 | c=1 measures baseline latency; c=4 measures throughput under load |
+| Reference video | `ucf101-archery.mp4` | Small (~500KB), action recognition, widely available |
+| Warmup | 3 | Exclude JIT compilation from measurements |
+
+### Running Standard Benchmarks
+
+```bash
+# Standard benchmark (runs both c=1 and c=4)
+python -m benchmark.run \
+    --target http://localhost:8000 \
+    --video benchmark/videos/ucf101-archery.mp4 \
+    --server <server-type> \
+    --model <model-type>
+
+# Single concurrency level
+python -m benchmark.run \
+    --target http://localhost:8000 \
+    --video benchmark/videos/ucf101-archery.mp4 \
+    --server <server-type> \
+    --model <model-type> \
+    --concurrency 1
+```
+
+### Interpreting Results
+
+* **c=1 results**: Baseline single-request latency ($L_{comp}$), minimal queueing
+* **c=4 results**: Throughput under concurrent load, shows queueing effects
+
+A healthy deployment should show:
+
+* Similar $L_{comp}$ at c=1 and c=4 (no significant latency increase)
+* Near-linear throughput scaling from c=1 to c=4
+
+## 7. Output & Reporting
 
 The benchmark concludes with a **JEPA Efficiency Report** including:
 

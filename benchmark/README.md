@@ -13,6 +13,57 @@ Latency and throughput benchmarks for V-JEPA2 inference, aligned with the [JWMSP
 | `benchmark_stream.py` | Throughput, realtime ratio, pipeline parallelism | Capacity planning |
 | `benchmark_coldstart.py` | Model load time, first inference overhead | Serverless/scale-to-zero |
 | `benchmark_e2e.py` | Full capture-to-prediction latency by source type | Architecture decisions |
+| `run.py` | Wrapper that stores results with metadata | Tracking optimization progress |
+| `report.py` | Generates markdown summary from stored results | Documentation, comparisons |
+
+## Results Storage
+
+Track benchmark results over time with automatic metadata capture:
+
+```bash
+# Run benchmark and store results (use reference videos from benchmark/videos/)
+python -m benchmark.run \
+    --target http://localhost:8080 \
+    --video benchmark/videos/ucf101-archery.mp4 \
+    --server vjepa2-server \
+    --model vit-l \
+    --jaeger http://localhost:16686
+
+# Generate markdown report
+python -m benchmark.report
+```
+
+Results are stored in `benchmark/results/` with hierarchical naming (sorted by config):
+
+```text
+{hardware}_{device}_{server}_{model}_c{concurrency}_{timestamp}.json
+
+m4-pro_cpu_vjepa2-server_vit-l_c1_2026-04-15T08-52-06.json
+m4-pro_cpu_vjepa2-server_vit-l_c4_2026-04-15T08-52-06.json
+m4-pro_mps_vjepa2-server_vit-l_c1_2026-04-15T08-48-48.json
+```
+
+Each result includes:
+
+- Git version tag or commit hash
+- Hardware info (cpu_model, memory_gb, instance_type for EC2)
+- JWMSP methodology metrics (RTF, L_comp, L_algo)
+- Full pipeline latency breakdown from OTel traces
+
+See `benchmark/BENCHMARKS.md` for the generated report.
+
+## Reference Videos
+
+Standard benchmark videos are provided in `benchmark/videos/`:
+
+| Video | Source | Use case |
+|-------|--------|----------|
+| `ucf101-archery.mp4` | UCF-101 | Action recognition (small, fast) |
+| `ucf101-baby-crawling.avi` | UCF-101 | Action recognition |
+| `ucf101-basketball-dunk.avi` | UCF-101 | Action recognition |
+| `people-detection.mp4` | Intel | Person detection (larger) |
+
+See `benchmark/videos/README.md` for sources and licensing.
 
 ## Quick Start
 
@@ -31,6 +82,57 @@ python -m benchmark.benchmark_stream --video samples/hands.mp4
 
 # Cold start penalty
 python -m benchmark.benchmark_coldstart
+```
+
+## Native macOS Benchmarking (MPS/CPU)
+
+Run benchmarks on Apple Silicon with MPS acceleration or CPU-only:
+
+```bash
+# 1. Start observability stack (Jaeger, OTel collector, Prometheus, Grafana)
+podman compose --profile observability up -d
+
+# 2. Start server with MPS (Apple Silicon GPU)
+MODEL_PATH=facebook/vjepa2-vitl-fpc16-256-ssv2 \
+DEVICE=mps \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
+OTEL_SERVICE_NAME=vjepa2-server \
+python -m app
+
+# 3. Run benchmark (in another terminal)
+python -m benchmark.run \
+    --target http://localhost:8080 \
+    --video benchmark/videos/ucf101-archery.mp4 \
+    --server vjepa2-server \
+    --model vit-l \
+    --jaeger http://localhost:16686
+
+# 4. Stop server (Ctrl+C), then run CPU benchmark
+MODEL_PATH=facebook/vjepa2-vitl-fpc16-256-ssv2 \
+DEVICE=cpu \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
+OTEL_SERVICE_NAME=vjepa2-server \
+python -m app
+
+# 5. Run CPU benchmark
+python -m benchmark.run \
+    --target http://localhost:8080 \
+    --video benchmark/videos/ucf101-archery.mp4 \
+    --server vjepa2-server \
+    --model vit-l \
+    --jaeger http://localhost:16686
+
+# 6. Generate report
+python -m benchmark.report
+
+# 7. Stop observability stack when done
+podman compose --profile observability down
+```
+
+For ViT-G models, use a local model path:
+
+```bash
+MODEL_PATH=./model-vitg DEVICE=mps python -m app
 ```
 
 ## Benchmark Details
@@ -213,6 +315,61 @@ python -m benchmark.benchmark_whitebox --video samples/sample.mp4 -o baseline.js
 
 # 3. Compare
 python -m benchmark.benchmark_whitebox --video samples/sample.mp4 -c baseline.json
+```
+
+## Tracking Optimization Progress
+
+Use `run.py` and `report.py` for long-term performance tracking:
+
+```bash
+# 1. Run benchmark with storage (captures git commit automatically)
+python -m benchmark.run \
+    --target http://localhost:8000 \
+    --video samples/sample.mp4 \
+    --server vjepa2-server-cuda \
+    --model vit-l \
+    --requests 50
+
+# 2. Make optimization changes, commit them
+
+# 3. Run benchmark again
+python -m benchmark.run \
+    --target http://localhost:8000 \
+    --video samples/sample.mp4 \
+    --server vjepa2-server-cuda \
+    --model vit-l \
+    --requests 50
+
+# 4. Generate report showing delta
+python -m benchmark.report
+
+# 5. Commit results and report
+git add benchmark/
+git commit -m "bench: document optimization progress"
+```
+
+### run.py Options
+
+```
+--server        Server type identifier (required)
+--model         Model identifier (required)
+--target        Target API URL (required, passed to benchmark.py)
+--video         Video file path (required, passed to benchmark.py)
+--container-image   Override container image tag in metadata
+--device        Override device type if server unavailable
+--results-dir   Output directory (default: benchmark/results)
+
+# Passthrough options (sent to benchmark.py)
+--requests, --concurrency, --jaeger, --warmup, --mode, etc.
+```
+
+### report.py Options
+
+```
+--results-dir   Input directory (default: benchmark/results)
+--output        Output markdown file (default: benchmark/BENCHMARKS.md)
+--server        Filter by server type
+--model         Filter by model
 ```
 
 ## Interpreting Results

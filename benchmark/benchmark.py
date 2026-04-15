@@ -84,6 +84,8 @@ class BenchmarkConfig:
     report_interval: float = 30.0  # report every 30s
     # Timestamp injection for true L_sys
     inject_timestamp: bool = False
+    # SSL verification
+    insecure: bool = False
 
 
 @dataclass
@@ -268,13 +270,17 @@ class SoakResult:
 class LoadGenerator:
     """Async HTTP load generator for V-JEPA2 API."""
 
-    def __init__(self, target_url: str, timeout: float = 120.0):
+    def __init__(self, target_url: str, timeout: float = 120.0, insecure: bool = False):
         self.target_url = target_url.rstrip("/")
         self.timeout = timeout
+        self.insecure = insecure
         self._client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> "LoadGenerator":
-        self._client = httpx.AsyncClient(timeout=self.timeout)
+        self._client = httpx.AsyncClient(
+            timeout=self.timeout,
+            verify=not self.insecure,  # Skip SSL verification if insecure=True
+        )
         return self
 
     async def __aexit__(self, *args: Any) -> None:
@@ -387,7 +393,7 @@ async def run_benchmark(config: BenchmarkConfig) -> BenchmarkResult:
             print(f"Jaeger: {config.jaeger_url} (not reachable, skipping traces)")
             jaeger = None
 
-    async with LoadGenerator(config.target_url) as loader:
+    async with LoadGenerator(config.target_url, insecure=config.insecure) as loader:
         # Warmup
         if config.warmup_requests > 0:
             print(f"\nWarmup: {config.warmup_requests} requests...")
@@ -471,7 +477,7 @@ async def run_saturation_test(config: BenchmarkConfig) -> SaturationResult:
     print(f"Concurrency levels: {config.concurrency_levels}")
     print(f"Requests per level: {config.requests_per_level}")
 
-    async with LoadGenerator(config.target_url) as loader:
+    async with LoadGenerator(config.target_url, insecure=config.insecure) as loader:
         # Warmup
         if config.warmup_requests > 0:
             print(f"\nWarmup: {config.warmup_requests} requests...")
@@ -560,7 +566,7 @@ async def run_soak_test(config: BenchmarkConfig) -> SoakResult:
     # Calculate L_algo for RTF
     l_algo_ms = (config.num_frames / config.source_fps) * 1000
 
-    async with LoadGenerator(config.target_url) as loader:
+    async with LoadGenerator(config.target_url, insecure=config.insecure) as loader:
         # Warmup
         if config.warmup_requests > 0:
             print(f"\nWarmup: {config.warmup_requests} requests...")
@@ -879,6 +885,11 @@ Examples:
         action="store_true",
         help="Inject observation timestamps for true L_sys measurement (requires Jaeger)",
     )
+    parser.add_argument(
+        "--insecure", "-k",
+        action="store_true",
+        help="Skip SSL certificate verification (for self-signed certs)",
+    )
 
     args = parser.parse_args()
 
@@ -900,6 +911,7 @@ Examples:
         duration_seconds=args.duration,
         report_interval=args.report_interval,
         inject_timestamp=args.inject_timestamp,
+        insecure=args.insecure,
     )
 
     try:
