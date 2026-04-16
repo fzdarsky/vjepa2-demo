@@ -1,8 +1,0 @@
-FROM scratch
-
-# Layer 1: config + preprocessor (small, shared across variants)
-COPY model/config.json              /
-COPY model/video_preprocessor_config.json /
-
-# Layer 2+: weight shards (separate layers for parallel pull)
-COPY model/model.safetensors        /

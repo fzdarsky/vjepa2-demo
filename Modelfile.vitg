@@ -1,4 +1,0 @@
-FROM scratch
-COPY model-vitg/config.json              /
-COPY model-vitg/video_preprocessor_config.json /
-COPY model-vitg/model.safetensors        /
