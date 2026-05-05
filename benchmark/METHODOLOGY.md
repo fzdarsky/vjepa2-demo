@@ -123,7 +123,56 @@ A healthy deployment should show:
 * Similar $L_{comp}$ at c=1 and c=4 (no significant latency increase)
 * Near-linear throughput scaling from c=1 to c=4
 
-## 7. Output & Reporting
+## 7. Session-Based Streaming Benchmark
+
+For vLLM-Omni deployments, the session-based API provides continuous streaming inference via Server-Sent Events (SSE).
+
+### API Flow
+
+```text
+1. POST /v1/world/session       -> Create session with video source
+2. GET  /v1/world/session/{id}/predictions  -> SSE stream of predictions
+3. DELETE /v1/world/session/{id}  -> Cleanup session
+```
+
+### Additional Streaming Metrics
+
+| Metric | Definition |
+| :--- | :--- |
+| **Inter-Prediction Latency** | Time between consecutive prediction arrivals (ms) |
+| **Effective FPS** | `throughput_predictions_per_sec * stride` |
+| **Session RT Ratio** | `mean_inter_prediction_ms / clip_duration_ms` |
+
+### Streaming Benchmark Execution
+
+```bash
+# Session-based streaming benchmark
+python -m benchmark.benchmark_session \
+    --target http://localhost:8080 \
+    --video /path/to/video.mp4 \
+    --jaeger http://localhost:16686
+
+# RTSP source (live camera)
+python -m benchmark.benchmark_session \
+    --target http://localhost:8080 \
+    --video rtsp://camera.local/stream \
+    --source-type rtsp
+```
+
+### Interpreting Streaming Results
+
+A healthy streaming deployment should show:
+
+* **Inter-prediction latency < clip duration** (i.e., RT ratio < 1.0)
+* **Consistent inter-prediction latency** (low jitter)
+* **No prediction gaps** (no frame drops under sustained load)
+
+The streaming benchmark is complementary to the request-based benchmark:
+
+* **Request-based** (`benchmark.py`): Measures cold-start latency, good for batch workloads
+* **Streaming** (`benchmark_session.py`): Measures sustained throughput, good for real-time workloads
+
+## 8. Output & Reporting
 
 The benchmark concludes with a **JEPA Efficiency Report** including:
 
