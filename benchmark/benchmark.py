@@ -86,6 +86,8 @@ class BenchmarkConfig:
     inject_timestamp: bool = False
     # SSL verification
     insecure: bool = False
+    # OTel service name for Jaeger queries
+    jaeger_service: str = "vjepa2-server"
 
 
 @dataclass
@@ -427,7 +429,7 @@ async def run_benchmark(config: BenchmarkConfig) -> BenchmarkResult:
 
         print("Collecting traces from Jaeger...")
         traces = jaeger.wait_for_traces(
-            service="vjepa2-server",
+            service=config.jaeger_service,
             start_time=result.start_time,
             expected_count=config.num_requests,
             timeout=30.0,
@@ -890,6 +892,11 @@ Examples:
         action="store_true",
         help="Skip SSL certificate verification (for self-signed certs)",
     )
+    parser.add_argument(
+        "--service",
+        default="vjepa2-server",
+        help="OTel service name for Jaeger queries (default: vjepa2-server)",
+    )
 
     args = parser.parse_args()
 
@@ -912,6 +919,7 @@ Examples:
         report_interval=args.report_interval,
         inject_timestamp=args.inject_timestamp,
         insecure=args.insecure,
+        jaeger_service=args.service,
     )
 
     try:

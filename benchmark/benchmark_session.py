@@ -324,15 +324,15 @@ async def run_session_benchmark(
     """
     result = SessionBenchmarkResult(config=config)
 
-    # Validate inputs
-    if config.source_type == "file" and not Path(config.video_path).exists():
-        raise FileNotFoundError(f"Video not found: {config.video_path}")
-
     # Build source URI
-    if config.source_type == "file":
+    if config.video_path.startswith(("file://", "rtsp://", "http://", "https://")):
+        source_uri = config.video_path
+    elif config.source_type == "file":
+        if not Path(config.video_path).exists():
+            raise FileNotFoundError(f"Video not found: {config.video_path}")
         source_uri = f"file://{Path(config.video_path).absolute()}"
     else:
-        source_uri = config.video_path  # Assume it's already a URI
+        source_uri = config.video_path
 
     print(f"Target: {config.target_url}")
     print(f"Source: {config.source_type}:{source_uri}")

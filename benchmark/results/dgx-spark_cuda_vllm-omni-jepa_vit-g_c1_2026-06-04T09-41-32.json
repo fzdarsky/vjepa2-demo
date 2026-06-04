@@ -1,0 +1,214 @@
+{
+  "metadata": {
+    "timestamp": "2026-06-04T09:41:32.139394+00:00",
+    "version": null,
+    "commit": null,
+    "dirty": false,
+    "hardware": "dgx-spark",
+    "device": "cuda",
+    "server": "vllm-omni-jepa",
+    "model": "vit-g",
+    "video_file": "ucf101-archery.mp4",
+    "concurrency": 1,
+    "requests": 20,
+    "environment": {
+      "platform": "linux",
+      "arch": "aarch64",
+      "cpu_model": null,
+      "cpu_count": 20,
+      "memory_gb": 119.6,
+      "memory_arch": "discrete",
+      "instance_type": null,
+      "gpu": null,
+      "cuda_version": null,
+      "pytorch_version": null,
+      "container_image": null
+    }
+  },
+  "config": {
+    "target_url": "https://localhost:8443",
+    "video_path": "/tmp/benchmark/videos/ucf101-archery.mp4",
+    "num_requests": 20,
+    "concurrency": 1,
+    "warmup_requests": 5,
+    "num_frames": 16,
+    "source_fps": 30.0
+  },
+  "summary": {
+    "mean_latency_ms": 447.549,
+    "p95_latency_ms": null,
+    "p99_latency_ms": null,
+    "throughput_rps": 2.234,
+    "success_rate": 1.0
+  },
+  "methodology": {
+    "L_comp_ms": 388.889,
+    "L_algo_ms": 533.333,
+    "L_sys_ms": 922.222,
+    "rtf": 1.371,
+    "jitter_ms": 76.732
+  },
+  "stages": {
+    "input_receive": {
+      "name": "input_receive",
+      "count": 20,
+      "mean_ms": 0.959,
+      "std_ms": 0.157,
+      "min_ms": 0.754,
+      "max_ms": 1.207,
+      "p50_ms": 0.996,
+      "p95_ms": 1.207,
+      "p99_ms": 1.207
+    },
+    "input_open": {
+      "name": "input_open",
+      "count": 20,
+      "mean_ms": 5.447,
+      "std_ms": 1.065,
+      "min_ms": 4.491,
+      "max_ms": 7.067,
+      "p50_ms": 4.579,
+      "p95_ms": 7.067,
+      "p99_ms": 7.067
+    },
+    "input_preprocess": {
+      "name": "input_preprocess",
+      "count": 20,
+      "mean_ms": 13.742,
+      "std_ms": 1.589,
+      "min_ms": 11.711,
+      "max_ms": 18.145,
+      "p50_ms": 13.562,
+      "p95_ms": 18.145,
+      "p99_ms": 18.145
+    },
+    "jepa_encode": {
+      "name": "jepa_encode",
+      "count": 20,
+      "mean_ms": 352.937,
+      "std_ms": 76.732,
+      "min_ms": 279.031,
+      "max_ms": 490.135,
+      "p50_ms": 402.887,
+      "p95_ms": 490.135,
+      "p99_ms": 490.135
+    },
+    "jepa_pool": {
+      "name": "jepa_pool",
+      "count": 20,
+      "mean_ms": 15.783,
+      "std_ms": 0.405,
+      "min_ms": 15.243,
+      "max_ms": 16.299,
+      "p50_ms": 15.993,
+      "p95_ms": 16.299,
+      "p99_ms": 16.299
+    },
+    "output_postprocess": {
+      "name": "output_postprocess",
+      "count": 20,
+      "mean_ms": 0.021,
+      "std_ms": 0.008,
+      "min_ms": 0.015,
+      "max_ms": 0.048,
+      "p50_ms": 0.017,
+      "p95_ms": 0.048,
+      "p99_ms": 0.048
+    }
+  },
+  "raw": {
+    "config": {
+      "target_url": "https://localhost:8443",
+      "video_path": "/tmp/benchmark/videos/ucf101-archery.mp4",
+      "num_requests": 20,
+      "concurrency": 1,
+      "warmup_requests": 5,
+      "num_frames": 16,
+      "source_fps": 30.0
+    },
+    "summary": {
+      "total_requests": 20,
+      "successful": 20,
+      "failed": 0,
+      "success_rate": 1.0,
+      "mean_latency_ms": 447.549,
+      "throughput_rps": 2.234
+    },
+    "stages": {
+      "input_receive": {
+        "name": "input_receive",
+        "count": 20,
+        "mean_ms": 0.959,
+        "std_ms": 0.157,
+        "min_ms": 0.754,
+        "max_ms": 1.207,
+        "p50_ms": 0.996,
+        "p95_ms": 1.207,
+        "p99_ms": 1.207
+      },
+      "input_open": {
+        "name": "input_open",
+        "count": 20,
+        "mean_ms": 5.447,
+        "std_ms": 1.065,
+        "min_ms": 4.491,
+        "max_ms": 7.067,
+        "p50_ms": 4.579,
+        "p95_ms": 7.067,
+        "p99_ms": 7.067
+      },
+      "input_preprocess": {
+        "name": "input_preprocess",
+        "count": 20,
+        "mean_ms": 13.742,
+        "std_ms": 1.589,
+        "min_ms": 11.711,
+        "max_ms": 18.145,
+        "p50_ms": 13.562,
+        "p95_ms": 18.145,
+        "p99_ms": 18.145
+      },
+      "jepa_encode": {
+        "name": "jepa_encode",
+        "count": 20,
+        "mean_ms": 352.937,
+        "std_ms": 76.732,
+        "min_ms": 279.031,
+        "max_ms": 490.135,
+        "p50_ms": 402.887,
+        "p95_ms": 490.135,
+        "p99_ms": 490.135
+      },
+      "jepa_pool": {
+        "name": "jepa_pool",
+        "count": 20,
+        "mean_ms": 15.783,
+        "std_ms": 0.405,
+        "min_ms": 15.243,
+        "max_ms": 16.299,
+        "p50_ms": 15.993,
+        "p95_ms": 16.299,
+        "p99_ms": 16.299
+      },
+      "output_postprocess": {
+        "name": "output_postprocess",
+        "count": 20,
+        "mean_ms": 0.021,
+        "std_ms": 0.008,
+        "min_ms": 0.015,
+        "max_ms": 0.048,
+        "p50_ms": 0.017,
+        "p95_ms": 0.048,
+        "p99_ms": 0.048
+      }
+    },
+    "methodology": {
+      "L_comp_ms": 388.889,
+      "L_algo_ms": 533.333,
+      "L_sys_ms": 922.222,
+      "rtf": 1.371,
+      "jitter_ms": 76.732
+    },
+    "metadata": {}
+  }
+}

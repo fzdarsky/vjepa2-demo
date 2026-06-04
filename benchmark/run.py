@@ -314,6 +314,8 @@ def main():
     parser.add_argument("--inject-timestamp", action="store_true")
     parser.add_argument("--insecure", "-k", action="store_true",
                         help="Skip SSL certificate verification")
+    parser.add_argument("--service", default="vjepa2-server",
+                        help="OTel service name for Jaeger queries (default: vjepa2-server)")
 
     args = parser.parse_args()
 
@@ -344,6 +346,8 @@ def main():
         passthrough_base.append("--inject-timestamp")
     if args.insecure:
         passthrough_base.append("--insecure")
+    if args.service != "vjepa2-server":
+        passthrough_base.extend(["--service", args.service])
 
     # Collect metadata
     timestamp = datetime.now(timezone.utc)

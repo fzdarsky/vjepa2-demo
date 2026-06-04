@@ -1,0 +1,21 @@
+FROM quay.io/fzdarsky/vllm-omni-jepa-cuda:arm64-latest
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+COPY configs/ ./configs/
+COPY static/ ./static/
+
+VOLUME /model
+VOLUME /input
+VOLUME /output
+
+RUN mkdir -p /input /output
+
+EXPOSE 8080
+
+ENTRYPOINT ["python", "-m", "app"]
+CMD ["serve"]
