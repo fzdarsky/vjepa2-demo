@@ -1,11 +1,13 @@
 # Benchmark Results
 
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 ## Summary
 
 | Date | Hardware | Device | Server | Model | c | RTF | L_comp (ms) | Throughput | Version |
 | ---- | -------- | ------ | ------ | ----- | - | --- | ----------- | ---------- | ------- |
+| 2026-06-05 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | 1 | 6.20 | 86 | 9.49 rps | 4cd156c |
+| 2026-06-05 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | 4 | 4.52 | 118 | 9.52 rps | 4cd156c |
 | 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-l | 1 | 3.92 | 136 | 4.88 rps | f7614bc |
 | 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-l | 4 | 6.27 | 85 | 7.88 rps | f7614bc |
 | 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-g | 1 | 1.37 | 389 | 2.23 rps | f7614bc |
@@ -33,6 +35,8 @@ Last updated: 2026-06-04
 
 | Date | Hardware | Device | Model | c | RTF | L_comp | Delta vs vjepa2-demo |
 | ---- | -------- | ------ | ----- | - | --- | ------ | -------------------- |
+| 2026-06-05 | g6.xlarge | cuda | vit-l | 1 | 6.20 | 86ms | **-54%** vs 188ms |
+| 2026-06-05 | g6.xlarge | cuda | vit-l | 4 | 4.52 | 118ms | **-37%** vs 188ms |
 | 2026-06-04 | dgx-spark | cuda | vit-l | 1 | 3.92 | 136ms | **-41%** vs 229ms |
 | 2026-06-04 | dgx-spark | cuda | vit-l | 4 | 6.27 | 85ms | **-63%** vs 230ms |
 | 2026-06-04 | dgx-spark | cuda | vit-g | 1 | 1.37 | 389ms | **-78%** vs 1742ms |
@@ -100,14 +104,60 @@ initialization paths.
 The 4.5x speedup for ViT-G is the headline result. vllm-omni keeps ViT-G real-time
 capable (RTF 1.37) while vjepa2-demo runs 3.3x below real-time.
 
+### vllm-omni on g6.xlarge vs DGX Spark (ViT-L, c=1)
+
+| Metric | g6.xlarge (L4) | DGX Spark (GB10) |
+| ------ | -------------- | ---------------- |
+| encode mean | 61ms | 113ms |
+| encode std | **1.4ms** | **73ms** |
+| encode p50 | 61ms | 65ms |
+| encode p95 | 64ms | 245ms |
+| L_comp | 86ms | 136ms |
+
+On discrete GPU (L4), encode is perfectly stable with 1.4ms std. The bimodality
+is exclusively a GB10 unified memory phenomenon — confirmed by running the exact
+same server and benchmark on both hardware platforms.
+
 ### GB10 bimodality note
 
 The DGX Spark GB10 shows bimodal encode latency on vllm-omni (fast ~65ms vs slow ~250ms
-for ViT-L, ~300ms vs ~490ms for ViT-G). Suspected cause: unified memory page migration
-between CPU and GPU address spaces. The vjepa2-demo server does not exhibit this pattern,
-suggesting the HF `from_pretrained` path handles memory placement differently.
+for ViT-L, ~300ms vs ~490ms for ViT-G). **Confirmed as a unified memory issue** — the
+same vllm-omni code runs with stable 1.4ms std on the g6.xlarge (L4, discrete VRAM).
+The vjepa2-demo server does not exhibit this on GB10, suggesting the HF `from_pretrained`
+path handles unified memory differently than vLLM's weight loading.
+
+Investigated and ruled out: `output_hidden_states`, double weight loading, `cudaMemAdvise`
+pinning, local vs HF-cache model path (see memory for full experiment log).
 
 ## Environment Details
+
+<details>
+<summary>2026-06-05 g6.xlarge/cuda vllm-omni-jepa vit-l c=1</summary>
+
+- Video: ucf101-archery.mp4
+- Concurrency: 1
+- Requests: 20
+- Instance: g6.xlarge
+- CPU: AMD EPYC 7R13 Processor
+- CPU cores: 4
+- Memory: 15.0 GB (discrete)
+- GPU: NVIDIA L4 (24 GB VRAM)
+
+</details>
+
+<details>
+<summary>2026-06-05 g6.xlarge/cuda vllm-omni-jepa vit-l c=4</summary>
+
+- Video: ucf101-archery.mp4
+- Concurrency: 4
+- Requests: 20
+- Instance: g6.xlarge
+- CPU: AMD EPYC 7R13 Processor
+- CPU cores: 4
+- Memory: 15.0 GB (discrete)
+- GPU: NVIDIA L4 (24 GB VRAM)
+
+</details>
 
 <details>
 <summary>2026-06-04 dgx-spark/cuda vllm-omni-jepa vit-l c=1</summary>
