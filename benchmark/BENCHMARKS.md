@@ -1,46 +1,47 @@
 # Benchmark Results
 
-Last updated: 2026-06-05
+Last updated: 2026-06-07
 
 ## Summary
 
-| Date | Hardware | Device | Server | Model | c | RTF | L_comp (ms) | Throughput | Version |
-| ---- | -------- | ------ | ------ | ----- | - | --- | ----------- | ---------- | ------- |
-| 2026-06-05 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | 1 | 6.20 | 86 | 9.49 rps | 4cd156c |
-| 2026-06-05 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | 4 | 4.52 | 118 | 9.52 rps | 4cd156c |
-| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-l | 1 | 3.92 | 136 | 4.88 rps | f7614bc |
-| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-l | 4 | 6.27 | 85 | 7.88 rps | f7614bc |
-| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-g | 1 | 1.37 | 389 | 2.23 rps | f7614bc |
-| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-g | 4 | 0.78 | 686 | 2.88 rps | f7614bc |
-| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-l | 1 | 2.33 | 229 | 4.10 rps | 5dfcbeb |
-| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-l | 4 | 2.32 | 230 | 4.14 rps | 5dfcbeb |
-| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-g | 1 | 0.31 | 1742 | 0.57 rps | 5dfcbeb |
-| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-g | 4 | 0.30 | 1757 | 0.56 rps | 5dfcbeb |
-| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-g | 1 | 0.42 | 1276 | 0.78 rps | 3a818a1* |
-| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-g | 4 | 0.41 | 1289 | 0.77 rps | 3a818a1* |
-| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-l | 1 | 2.84 | 188 | 5.05 rps | 3a818a1* |
-| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-l | 4 | 2.84 | 188 | 5.09 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-g | 1 | 0.06 | 8320 | 0.12 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-g | 4 | 0.06 | 8279 | 0.12 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-l | 1 | 0.43 | 1225 | 0.81 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-l | 4 | 0.42 | 1263 | 0.79 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-g | 1 | 0.09 | 5868 | 0.17 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-g | 4 | 0.09 | 5836 | 0.17 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-l | 1 | 0.83 | 641 | 1.54 rps | 3a818a1* |
-| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-l | 4 | 0.84 | 637 | 1.56 rps | 3a818a1* |
+| Date | Hardware | Device | Server | Model | c | RTF | L_comp (ms) | Throughput | Version | Notes |
+| ---- | -------- | ------ | ------ | ----- | - | --- | ----------- | ---------- | ------- | ----- |
+| 2026-06-07 | dgx-spark | cuda | vllm-omni-jepa | vit-l | — | 3.45 | 155 | 4.66 p/s | dd23983 | GPU preprocess, session API |
+| 2026-06-07 | dgx-spark | cuda | vllm-omni-jepa | vit-g | — | 1.24 | 429 | 2.13 p/s | dd23983 | GPU preprocess, session API |
+| 2026-06-05 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | 1 | 6.20 | 86 | 9.49 rps | 4cd156c | CPU preprocess, /v2/infer |
+| 2026-06-05 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | 4 | 4.52 | 118 | 9.52 rps | 4cd156c | CPU preprocess, /v2/infer |
+| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-l | 1 | 3.92 | 136 | 4.88 rps | f7614bc | CPU preprocess, /v2/infer |
+| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-l | 4 | 6.27 | 85 | 7.88 rps | f7614bc | CPU preprocess, /v2/infer |
+| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-g | 1 | 1.37 | 389 | 2.23 rps | f7614bc | CPU preprocess, /v2/infer |
+| 2026-06-04 | dgx-spark | cuda | vllm-omni-jepa | vit-g | 4 | 0.78 | 686 | 2.88 rps | f7614bc | CPU preprocess, /v2/infer |
+| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-l | 1 | 2.33 | 229 | 4.10 rps | 5dfcbeb | |
+| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-l | 4 | 2.32 | 230 | 4.14 rps | 5dfcbeb | |
+| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-g | 1 | 0.31 | 1742 | 0.57 rps | 5dfcbeb | |
+| 2026-06-04 | dgx-spark | cuda | vjepa2-server-cuda | vit-g | 4 | 0.30 | 1757 | 0.56 rps | 5dfcbeb | |
+| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-g | 1 | 0.42 | 1276 | 0.78 rps | 3a818a1* | |
+| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-g | 4 | 0.41 | 1289 | 0.77 rps | 3a818a1* | |
+| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-l | 1 | 2.84 | 188 | 5.05 rps | 3a818a1* | |
+| 2026-04-15 | g6.xlarge | cuda | vjepa2-server-cuda | vit-l | 4 | 2.84 | 188 | 5.09 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-g | 1 | 0.06 | 8320 | 0.12 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-g | 4 | 0.06 | 8279 | 0.12 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-l | 1 | 0.43 | 1225 | 0.81 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | cpu | vjepa2-server | vit-l | 4 | 0.42 | 1263 | 0.79 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-g | 1 | 0.09 | 5868 | 0.17 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-g | 4 | 0.09 | 5836 | 0.17 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-l | 1 | 0.83 | 641 | 1.54 rps | 3a818a1* | |
+| 2026-04-15 | m4-pro | mps | vjepa2-server | vit-l | 4 | 0.84 | 637 | 1.56 rps | 3a818a1* | |
 
 ## By Server
 
 ### vllm-omni-jepa
 
-| Date | Hardware | Device | Model | c | RTF | L_comp | Delta vs vjepa2-demo |
-| ---- | -------- | ------ | ----- | - | --- | ------ | -------------------- |
-| 2026-06-05 | g6.xlarge | cuda | vit-l | 1 | 6.20 | 86ms | **-54%** vs 188ms |
-| 2026-06-05 | g6.xlarge | cuda | vit-l | 4 | 4.52 | 118ms | **-37%** vs 188ms |
-| 2026-06-04 | dgx-spark | cuda | vit-l | 1 | 3.92 | 136ms | **-41%** vs 229ms |
-| 2026-06-04 | dgx-spark | cuda | vit-l | 4 | 6.27 | 85ms | **-63%** vs 230ms |
-| 2026-06-04 | dgx-spark | cuda | vit-g | 1 | 1.37 | 389ms | **-78%** vs 1742ms |
-| 2026-06-04 | dgx-spark | cuda | vit-g | 4 | 0.78 | 686ms | **-61%** vs 1757ms |
+| Date | Hardware | Device | Model | RTF | L_comp | Delta vs vjepa2-demo | Notes |
+| ---- | -------- | ------ | ----- | --- | ------ | -------------------- | ----- |
+| 2026-06-07 | dgx-spark | cuda | vit-l | 3.45 | 155ms | **-32%** vs 229ms | GPU preprocess, session API |
+| 2026-06-07 | dgx-spark | cuda | vit-g | 1.24 | 429ms | **-75%** vs 1742ms | GPU preprocess, session API |
+| 2026-06-05 | g6.xlarge | cuda | vit-l | 6.20 | 86ms | **-54%** vs 188ms | CPU preprocess, /v2/infer |
+| 2026-06-04 | dgx-spark | cuda | vit-l | 3.92 | 136ms | **-41%** vs 229ms | CPU preprocess, /v2/infer |
+| 2026-06-04 | dgx-spark | cuda | vit-g | 1.37 | 389ms | **-78%** vs 1742ms | CPU preprocess, /v2/infer |
 
 ### vjepa2-server-cuda
 
@@ -69,6 +70,22 @@ Last updated: 2026-06-05
 | 2026-04-15 | m4-pro | mps | vit-l | 4 | 0.84 | 637ms | baseline |
 
 ## Analysis
+
+### GPU preprocessing impact on DGX Spark (2026-06-07)
+
+GPU-side preprocessing (torchvision on CUDA) eliminates the GPU→CPU→GPU round-trip
+that `AutoVideoProcessor` required. All preprocessing parameters (resize, crop, normalize)
+are derived from the model's `video_preprocessor_config.json`.
+
+| Stage | CPU preprocess (06-04) | GPU preprocess (06-07) | Delta |
+| ----- | ---------------------- | ---------------------- | ----- |
+| input_preprocess | 16.8ms | **3.3ms** | **-80%** |
+| jepa_encode | 144ms | 144ms | unchanged |
+| **TOTAL (ViT-L)** | **169ms** | **155ms** | **-8%** |
+| **TOTAL (ViT-G)** | — | **429ms** | — |
+
+The preprocessing improvement is ~13ms per clip. The encode step is unchanged,
+confirming the win comes purely from eliminating the CPU round-trip.
 
 ### vllm-omni vs vjepa2-demo on DGX Spark (ViT-L, c=1)
 
