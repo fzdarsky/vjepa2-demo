@@ -6,6 +6,7 @@ Last updated: 2026-06-07
 
 | Date | Hardware | Device | Server | Model | c | RTF | L_comp (ms) | Throughput | Version | Notes |
 | ---- | -------- | ------ | ------ | ----- | - | --- | ----------- | ---------- | ------- | ----- |
+| 2026-06-08 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | — | 7.30 | 73 | 5.34 p/s | dd23983 | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vllm-omni-jepa | vit-l | — | 3.45 | 155 | 4.66 p/s | dd23983 | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vllm-omni-jepa | vit-g | — | 1.24 | 429 | 2.13 p/s | dd23983 | GPU preprocess, session API |
 | 2026-06-05 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | 1 | 6.20 | 86 | 9.49 rps | 4cd156c | CPU preprocess, /v2/infer |
@@ -37,6 +38,7 @@ Last updated: 2026-06-07
 
 | Date | Hardware | Device | Model | RTF | L_comp | Delta vs vjepa2-demo | Notes |
 | ---- | -------- | ------ | ----- | --- | ------ | -------------------- | ----- |
+| 2026-06-08 | g6.xlarge | cuda | vit-l | 7.30 | 73ms | **-61%** vs 188ms | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vit-l | 3.45 | 155ms | **-32%** vs 229ms | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vit-g | 1.24 | 429ms | **-75%** vs 1742ms | GPU preprocess, session API |
 | 2026-06-05 | g6.xlarge | cuda | vit-l | 6.20 | 86ms | **-54%** vs 188ms | CPU preprocess, /v2/infer |
