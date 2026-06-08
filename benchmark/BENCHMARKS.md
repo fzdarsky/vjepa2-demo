@@ -1,8 +1,11 @@
 # Benchmark Results
 
-Last updated: 2026-06-07
+Last updated: 2026-06-08
 
 ## Summary
+
+Concurrency column: `c=N` for request-based benchmarks (`/v2/infer`, N concurrent requests);
+`—` for session-based benchmarks (single video stream, clips processed sequentially).
 
 | Date | Hardware | Device | Server | Model | c | RTF | L_comp (ms) | Throughput | Version | Notes |
 | ---- | -------- | ------ | ------ | ----- | - | --- | ----------- | ---------- | ------- | ----- |
