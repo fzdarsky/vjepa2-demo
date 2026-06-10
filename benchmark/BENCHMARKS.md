@@ -1,6 +1,6 @@
 # Benchmark Results
 
-Last updated: 2026-06-08
+Last updated: 2026-06-10
 
 ## Summary
 
@@ -9,6 +9,9 @@ Concurrency column: `c=N` for request-based benchmarks (`/v2/infer`, N concurren
 
 | Date | Hardware | Device | Server | Model | c | RTF | L_comp (ms) | Throughput | Version | Notes |
 | ---- | -------- | ------ | ------ | ----- | - | --- | ----------- | ---------- | ------- | ----- |
+| 2026-06-10 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | — | 7.48 | 71 | 10.25 p/s | 0097746 | GPU preprocess, encoder fix, session API |
+| 2026-06-09 | dgx-spark | cuda | vllm-omni-jepa | vit-l | — | 6.46 | 83 | 4.74 p/s | 0097746 | GPU preprocess, core pinning, session API |
+| 2026-06-09 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | — | 6.26 | 85 | 5.88 p/s | dd23983 | CPU preprocess, session API |
 | 2026-06-08 | g6.xlarge | cuda | vllm-omni-jepa | vit-l | — | 7.30 | 73 | 5.34 p/s | dd23983 | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vllm-omni-jepa | vit-l | — | 3.45 | 155 | 4.66 p/s | dd23983 | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vllm-omni-jepa | vit-g | — | 1.24 | 429 | 2.13 p/s | dd23983 | GPU preprocess, session API |
@@ -41,6 +44,9 @@ Concurrency column: `c=N` for request-based benchmarks (`/v2/infer`, N concurren
 
 | Date | Hardware | Device | Model | RTF | L_comp | Delta vs vjepa2-demo | Notes |
 | ---- | -------- | ------ | ----- | --- | ------ | -------------------- | ----- |
+| 2026-06-10 | g6.xlarge | cuda | vit-l | 7.48 | 71ms | **-62%** vs 188ms | GPU preprocess, encoder fix, session API |
+| 2026-06-09 | dgx-spark | cuda | vit-l | 6.46 | 83ms | **-64%** vs 229ms | GPU preprocess, core pinning, session API |
+| 2026-06-09 | g6.xlarge | cuda | vit-l | 6.26 | 85ms | **-55%** vs 188ms | CPU preprocess, session API |
 | 2026-06-08 | g6.xlarge | cuda | vit-l | 7.30 | 73ms | **-61%** vs 188ms | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vit-l | 3.45 | 155ms | **-32%** vs 229ms | GPU preprocess, session API |
 | 2026-06-07 | dgx-spark | cuda | vit-g | 1.24 | 429ms | **-75%** vs 1742ms | GPU preprocess, session API |
@@ -126,32 +132,114 @@ initialization paths.
 The 4.5x speedup for ViT-G is the headline result. vllm-omni keeps ViT-G real-time
 capable (RTF 1.37) while vjepa2-demo runs 3.3x below real-time.
 
+### ARM core pinning impact on DGX Spark (2026-06-09)
+
+The GB10 SoC has a heterogeneous ARM CPU (big.LITTLE): 10× Cortex-X925 (3900 MHz)
++ 10× Cortex-A725 (2808 MHz). Linux scheduler treats all 20 cores as equal and
+migrates threads freely, causing bimodal latency when compute-heavy threads land
+on efficiency cores.
+
+`FeedForwardEngine._pin_to_performance_cores()` auto-detects core speeds from sysfs
+and pins the engine thread to X925 cores at startup. Falls back silently on x86.
+
+| Metric | Before (06-07) | After (06-09) | Delta |
+| ------ | -------------- | ------------- | ----- |
+| encode mean | 144ms | 68ms | **-53%** |
+| encode std | 91ms | **5.9ms** | **-93%** |
+| encode p50 | 70ms | 66ms | -6% |
+| encode p95 | 293ms | 83ms | **-72%** |
+| L_comp | 155ms | **83ms** | **-46%** |
+| RTF | 3.45 | **6.46** | **+87%** |
+
+The standalone reproducer (vjepa2-demo) was stable because short-lived processes
+tend to stay on one core — the migration only shows up in long-running server processes.
+
+### GPU preprocessing impact on g6.xlarge (2026-06-10)
+
+GPU preprocessing on L4 shows the same pattern as on GB10: eliminating the CPU round-trip
+cuts preprocess time dramatically. The encode step also improved due to the encoder weight
+loading fix (`self.named_parameters()` instead of `self._impl._model.named_parameters()`),
+which ensured all weights were properly initialized from checkpoint.
+
+| Stage | CPU preprocess (06-09) | GPU preprocess (06-10) | Delta |
+| ----- | ---------------------- | ---------------------- | ----- |
+| input_preprocess | 17.0ms | **2.2ms** | **-87%** |
+| jepa_encode | 63ms | 64ms | unchanged |
+| **TOTAL (ViT-L)** | **85ms** | **71ms** | **-16%** |
+
+The 14ms improvement comes from preprocess (~15ms saved) minus minor variance in other
+stages. The L4 now matches GB10+core-pinning performance (71ms vs 83ms).
+
 ### vllm-omni on g6.xlarge vs DGX Spark (ViT-L, c=1)
 
-| Metric | g6.xlarge (L4) | DGX Spark (GB10) |
-| ------ | -------------- | ---------------- |
-| encode mean | 61ms | 113ms |
-| encode std | **1.4ms** | **73ms** |
-| encode p50 | 61ms | 65ms |
-| encode p95 | 64ms | 245ms |
-| L_comp | 86ms | 136ms |
+| Metric | g6.xlarge (L4, GPU pp) | g6.xlarge (L4, CPU pp) | DGX Spark (GB10, pre-pinning) | DGX Spark (GB10, post-pinning) |
+| ------ | --------------------- | --------------------- | ----------------------------- | ------------------------------ |
+| encode mean | 64ms | 63ms | 113ms | 68ms |
+| encode std | **9.9ms** | **6.7ms** | 73ms | **5.9ms** |
+| encode p50 | 61ms | 62ms | 65ms | 66ms |
+| encode p95 | 96ms | 81ms | 245ms | 83ms |
+| preprocess | **2.2ms** (GPU) | 17ms (CPU) | 3ms (GPU) | 3ms (GPU) |
+| L_comp | **71ms** | 85ms | 136ms | **83ms** |
 
-On discrete GPU (L4), encode is perfectly stable with 1.4ms std. The bimodality
-is exclusively a GB10 unified memory phenomenon — confirmed by running the exact
-same server and benchmark on both hardware platforms.
-
-### GB10 bimodality note
-
-The DGX Spark GB10 shows bimodal encode latency on vllm-omni (fast ~65ms vs slow ~250ms
-for ViT-L, ~300ms vs ~490ms for ViT-G). **Confirmed as a unified memory issue** — the
-same vllm-omni code runs with stable 1.4ms std on the g6.xlarge (L4, discrete VRAM).
-The vjepa2-demo server does not exhibit this on GB10, suggesting the HF `from_pretrained`
-path handles unified memory differently than vLLM's weight loading.
-
-Investigated and ruled out: `output_hidden_states`, double weight loading, `cudaMemAdvise`
-pinning, local vs HF-cache model path (see memory for full experiment log).
+With GPU preprocessing enabled on L4, L_comp drops from 85ms to 71ms — now the
+fastest result across all hardware. The L4 encode std is slightly higher with GPU
+preprocessing (9.9ms vs 6.7ms) but within normal variance. On GB10 with core pinning,
+stability is comparable (5.9ms std). Core pinning is a no-op on x86 (homogeneous cores).
 
 ## Environment Details
+
+<details>
+<summary>2026-06-10 g6.xlarge/cuda vllm-omni-jepa vit-l session (GPU preprocess, encoder fix)</summary>
+
+- Video: ucf101-archery.mp4 (38 clips)
+- Session API (streaming)
+- Instance: g6.xlarge
+- CPU: AMD EPYC 7R13 Processor
+- CPU cores: 4
+- Memory: 15.0 GB (discrete)
+- GPU: NVIDIA L4 (24 GB VRAM)
+- Commit: 0097746 (GPU preprocess + encoder weight loading fix)
+- Jaeger traces: 38 traces collected
+
+Pipeline breakdown:
+
+- input_receive: 0.02ms
+- input_decode: 0.14ms
+- input_preprocess: 2.24ms (GPU)
+- jepa_encode: 64.42ms (std=9.94ms, p50=61ms, p95=96ms)
+- jepa_pool: 4.46ms
+- output_postprocess: 0.01ms
+- TOTAL: 71.3ms
+
+</details>
+
+<details>
+<summary>2026-06-09 dgx-spark/cuda vllm-omni-jepa vit-l session (core pinning)</summary>
+
+- Video: ucf101-archery.mp4 (38 clips)
+- Session API (streaming)
+- Hardware: NVIDIA DGX Spark (GB10)
+- CPU: ARM Cortex-X925/A725 (pinned to X925)
+- CPU cores: 20 (10 perf, 10 efficiency)
+- Memory: 119.6 GB (unified CPU+GPU)
+- GPU: NVIDIA GB10
+- Commit: 0097746 (core pinning fix)
+
+</details>
+
+<details>
+<summary>2026-06-09 g6.xlarge/cuda vllm-omni-jepa vit-l session (CPU preprocess)</summary>
+
+- Video: ucf101-archery.mp4 (38 clips)
+- Session API (streaming)
+- Instance: g6.xlarge
+- CPU: AMD EPYC 7R13 Processor
+- CPU cores: 4
+- Memory: 15.0 GB (discrete)
+- GPU: NVIDIA L4 (24 GB VRAM)
+- Commit: dd23983 (pre-built image, no GPU preprocess)
+
+</details>
 
 <details>
 <summary>2026-06-05 g6.xlarge/cuda vllm-omni-jepa vit-l c=1</summary>

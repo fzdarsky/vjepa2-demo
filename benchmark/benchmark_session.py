@@ -212,6 +212,18 @@ class SessionClient:
         if self._client:
             await self._client.aclose()
 
+    async def upload_video(self, video_path: str) -> str:
+        """Upload a video file and return the server-side URI."""
+        if not self._client:
+            raise RuntimeError("SessionClient not initialized")
+
+        url = f"{self.target_url}/v1/world/upload"
+        with open(video_path, "rb") as f:
+            files = {"file": (Path(video_path).name, f, "video/mp4")}
+            response = await self._client.post(url, files=files)
+        response.raise_for_status()
+        return response.json()["uri"]
+
     async def create_session(
         self,
         source_type: str,
@@ -324,18 +336,19 @@ async def run_session_benchmark(
     """
     result = SessionBenchmarkResult(config=config)
 
-    # Build source URI
+    # Build source URI — upload local files to the server first
+    needs_upload = False
     if config.video_path.startswith(("file://", "rtsp://", "http://", "https://")):
         source_uri = config.video_path
     elif config.source_type == "file":
         if not Path(config.video_path).exists():
             raise FileNotFoundError(f"Video not found: {config.video_path}")
-        source_uri = f"file://{Path(config.video_path).absolute()}"
+        needs_upload = True
+        source_uri = ""  # will be set after upload
     else:
         source_uri = config.video_path
 
     print(f"Target: {config.target_url}")
-    print(f"Source: {config.source_type}:{source_uri}")
     print(f"Clip config: {config.num_frames} frames, stride {config.stride}")
 
     # Check Jaeger availability
@@ -353,6 +366,19 @@ async def run_session_benchmark(
         timeout=config.session_timeout,
         insecure=config.insecure,
     ) as client:
+        # Upload local video file to server
+        if needs_upload:
+            print(f"\nUploading {config.video_path}...")
+            try:
+                source_uri = await client.upload_video(config.video_path)
+                print(f"Uploaded: {source_uri}")
+            except Exception as e:
+                result.error = f"Failed to upload video: {e}"
+                print(f"Error: {result.error}")
+                return result
+
+        print(f"Source: {config.source_type}:{source_uri}")
+
         # Create session
         print(f"\nCreating session...")
         try:
