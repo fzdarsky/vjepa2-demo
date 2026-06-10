@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Containerfile.cuda
     ports:
-      - "8080:8080"
+      - "8443:8443"
     devices:
       - nvidia.com/gpu=all
     volumes:
@@ -27,7 +27,7 @@ services:
       context: .
       dockerfile: Containerfile.cpu
     ports:
-      - "8080:8080"
+      - "8443:8443"
     volumes:
       - vjepa2-model-vitl:/model:ro
       - ./samples:/input:ro,z

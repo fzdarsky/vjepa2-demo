@@ -23,7 +23,7 @@ Track benchmark results over time with automatic metadata capture:
 ```bash
 # Run benchmark and store results (use reference videos from benchmark/videos/)
 python -m benchmark.run \
-    --target http://localhost:8080 \
+    --target https://localhost:8443 \
     --video benchmark/videos/ucf101-archery.mp4 \
     --server vjepa2-server \
     --model vit-l \
@@ -101,7 +101,7 @@ python -m app
 
 # 3. Run benchmark (in another terminal)
 python -m benchmark.run \
-    --target http://localhost:8080 \
+    --target https://localhost:8443 \
     --video benchmark/videos/ucf101-archery.mp4 \
     --server vjepa2-server \
     --model vit-l \
@@ -116,7 +116,7 @@ python -m app
 
 # 5. Run CPU benchmark
 python -m benchmark.run \
-    --target http://localhost:8080 \
+    --target https://localhost:8443 \
     --video benchmark/videos/ucf101-archery.mp4 \
     --server vjepa2-server \
     --model vit-l \

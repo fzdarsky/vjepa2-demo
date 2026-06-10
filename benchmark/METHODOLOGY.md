@@ -148,13 +148,13 @@ For vLLM-Omni deployments, the session-based API provides continuous streaming i
 ```bash
 # Session-based streaming benchmark
 python -m benchmark.benchmark_session \
-    --target http://localhost:8080 \
+    --target https://localhost:8443 \
     --video /path/to/video.mp4 \
     --jaeger http://localhost:16686
 
 # RTSP source (live camera)
 python -m benchmark.benchmark_session \
-    --target http://localhost:8080 \
+    --target https://localhost:8443 \
     --video rtsp://camera.local/stream \
     --source-type rtsp
 ```

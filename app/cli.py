@@ -151,7 +151,7 @@ def main():
     # serve
     serve_parser = subparsers.add_parser("serve", help="Start API server")
     serve_parser.add_argument("--host", default="0.0.0.0")
-    serve_parser.add_argument("--port", type=int, default=8080)
+    serve_parser.add_argument("--port", type=int, default=8443)
     serve_parser.add_argument("--ssl-keyfile", help="Path to SSL private key")
     serve_parser.add_argument("--ssl-certfile", help="Path to SSL certificate")
 
@@ -175,7 +175,7 @@ def main():
     if args.command is None:
         args.command = "serve"
         args.host = "0.0.0.0"
-        args.port = 8080
+        args.port = 8443
         args.ssl_keyfile = None
         args.ssl_certfile = None
 

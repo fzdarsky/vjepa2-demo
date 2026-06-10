@@ -51,7 +51,7 @@ The native server sends telemetry to the containerized OTel Collector via `local
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| Web UI | http://localhost:8080 | Video inference (upload, camera, RTSP) |
+| Web UI | https://localhost:8443 | Video inference (upload, camera, RTSP) |
 | Grafana | http://localhost:3000 | Performance dashboard |
 | Jaeger | http://localhost:16686 | Trace visualization |
 | Prometheus | http://localhost:9090 | Metrics queries |
@@ -72,7 +72,7 @@ See [deploy/openshift/README.md](deploy/openshift/README.md) for the full deploy
 
 ## Using the Web UI
 
-Open http://localhost:8080. Three input modes are available:
+Open https://localhost:8443. Three input modes are available:
 
 - **Upload** — select or drag-and-drop a video file for batch inference
 - **Camera** — record from your browser camera with inference running while you record

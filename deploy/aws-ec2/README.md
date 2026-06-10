@@ -70,7 +70,7 @@ After deployment (~3 minutes with custom AMI):
 
 | Service | Port | URL |
 |---------|------|-----|
-| Inference API | 8080 | `http://<public-ip>:8080/v2/models/vjepa2/infer` |
+| Inference API | 8080 | `http://<public-ip>:8443/v2/models/vjepa2/infer` |
 | Grafana | 3000 | `http://<public-ip>:3000` |
 | Jaeger | 16686 | `http://<public-ip>:16686` |
 | Prometheus | 9090 | `http://<public-ip>:9090` |

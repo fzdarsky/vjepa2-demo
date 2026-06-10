@@ -19,18 +19,18 @@ Key metrics (JWMSP):
 Usage:
     # Basic streaming benchmark
     python -m benchmark.benchmark_session \\
-        --target http://localhost:8080 \\
+        --target http://localhost:8443 \\
         --video /path/to/video.mp4
 
     # With Jaeger trace collection
     python -m benchmark.benchmark_session \\
-        --target http://localhost:8080 \\
+        --target http://localhost:8443 \\
         --video /path/to/video.mp4 \\
         --jaeger http://localhost:16686
 
     # Limit predictions for quick test
     python -m benchmark.benchmark_session \\
-        --target http://localhost:8080 \\
+        --target http://localhost:8443 \\
         --video /path/to/video.mp4 \\
         --max-predictions 10
 """
@@ -527,18 +527,18 @@ def main() -> None:
 Examples:
   # Basic streaming benchmark
   python -m benchmark.benchmark_session \\
-      --target http://localhost:8080 \\
+      --target http://localhost:8443 \\
       --video /path/to/video.mp4
 
   # With Jaeger trace collection
   python -m benchmark.benchmark_session \\
-      --target http://localhost:8080 \\
+      --target http://localhost:8443 \\
       --video /path/to/video.mp4 \\
       --jaeger http://localhost:16686
 
   # RTSP source (streaming camera)
   python -m benchmark.benchmark_session \\
-      --target http://localhost:8080 \\
+      --target http://localhost:8443 \\
       --video rtsp://camera.local/stream \\
       --source-type rtsp
         """,
@@ -547,7 +547,7 @@ Examples:
     parser.add_argument(
         "--target",
         required=True,
-        help="Target API URL (e.g., http://localhost:8080)",
+        help="Target API URL (e.g., http://localhost:8443)",
     )
     parser.add_argument(
         "--video",

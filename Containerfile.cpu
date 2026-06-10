@@ -19,7 +19,7 @@ VOLUME /output
 
 RUN mkdir -p /input /output
 
-EXPOSE 8080
+EXPOSE 8443
 
 ENTRYPOINT ["python", "-m", "app"]
 CMD ["serve"]
