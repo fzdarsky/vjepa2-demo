@@ -5,7 +5,7 @@ set -euo pipefail
 # Works on EC2, DGX Spark, or any Fedora/RHEL box with podman + CUDA.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REGISTRY="${REGISTRY:-quay.io/fzdarsky}"
 
 # EC2 connection (used when targeting a remote host)
@@ -174,7 +174,7 @@ cmd_setup_remote() {
 
     ssh_cmd "$ip" "
         set -e
-        cd ${REMOTE_DIR}
+        cd ${REMOTE_DIR}/deploy
 
         # Stop existing services
         sudo podman-compose down 2>/dev/null || true
@@ -243,9 +243,9 @@ cmd_setup_local() {
     local profiles="--profile $accel --profile observability"
     [[ "$accel" == "cuda" ]] && profiles="$profiles --profile gpu-metrics"
 
-    cd "$REPO_ROOT"
+    cd "$SCRIPT_DIR"
     SSL_KEYFILE=/certs/key.pem SSL_CERTFILE=/certs/cert.pem \
-        podman-compose "$profiles" up -d
+        podman-compose $profiles up -d
 
     echo ""
     echo "V-JEPA2 demo running locally. API: https://localhost:8443"
@@ -257,27 +257,27 @@ cmd_run() {
         accel=$(detect_local_accel)
         profiles="--profile $accel --profile observability"
         [[ "$accel" == "cuda" ]] && profiles="$profiles --profile gpu-metrics"
-        cd "$REPO_ROOT"
+        cd "$SCRIPT_DIR"
         SSL_KEYFILE=/certs/key.pem SSL_CERTFILE=/certs/cert.pem \
-            podman-compose "$profiles" up -d
+            podman-compose $profiles up -d
     else
         local ip
         ip=$(get_ec2_ip)
         accel=$(get_acceleration)
         profiles="--profile ${accel} --profile observability"
         [[ "$accel" == "cuda" ]] && profiles="$profiles --profile gpu-metrics"
-        ssh_cmd "$ip" "cd ${REMOTE_DIR} && sudo SSL_KEYFILE=/certs/key.pem SSL_CERTFILE=/certs/cert.pem podman-compose ${profiles} up -d"
+        ssh_cmd "$ip" "cd ${REMOTE_DIR}/deploy && sudo SSL_KEYFILE=/certs/key.pem SSL_CERTFILE=/certs/cert.pem podman-compose ${profiles} up -d"
     fi
 }
 
 cmd_stop() {
     if [[ "$LOCAL" == "true" ]]; then
-        cd "$REPO_ROOT"
+        cd "$SCRIPT_DIR"
         podman-compose down
     else
         local ip
         ip=$(get_ec2_ip)
-        ssh_cmd "$ip" "cd ${REMOTE_DIR} && sudo podman-compose down"
+        ssh_cmd "$ip" "cd ${REMOTE_DIR}/deploy && sudo podman-compose down"
     fi
 }
 
@@ -301,12 +301,12 @@ cmd_status() {
 cmd_logs() {
     local service="${2:-}"
     if [[ "$LOCAL" == "true" ]]; then
-        cd "$REPO_ROOT"
+        cd "$SCRIPT_DIR"
         podman-compose logs -f "$service"
     else
         local ip
         ip=$(get_ec2_ip)
-        ssh_cmd "$ip" "cd ${REMOTE_DIR} && sudo podman-compose logs -f $service"
+        ssh_cmd "$ip" "cd ${REMOTE_DIR}/deploy && sudo podman-compose logs -f $service"
     fi
 }
 
@@ -316,11 +316,11 @@ cmd_redeploy() {
         accel=$(detect_local_accel)
         profiles="--profile $accel --profile observability"
         [[ "$accel" == "cuda" ]] && profiles="$profiles --profile gpu-metrics"
-        cd "$REPO_ROOT"
+        cd "$SCRIPT_DIR"
         podman-compose down
         podman pull "${REGISTRY}/vjepa2-server-${accel}:latest"
         SSL_KEYFILE=/certs/key.pem SSL_CERTFILE=/certs/cert.pem \
-            podman-compose "$profiles" up -d
+            podman-compose $profiles up -d
     else
         local ip accel profiles
         ip=$(get_ec2_ip)
@@ -338,7 +338,7 @@ cmd_redeploy() {
 
         ssh_cmd "$ip" "
             set -e
-            cd ${REMOTE_DIR}
+            cd ${REMOTE_DIR}/deploy
             sudo podman-compose down
             sudo podman pull ${REGISTRY}/vjepa2-server-${accel}:latest
             sudo SSL_KEYFILE=/certs/key.pem SSL_CERTFILE=/certs/cert.pem \

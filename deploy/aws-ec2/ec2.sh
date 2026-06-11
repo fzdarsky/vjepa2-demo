@@ -3,7 +3,7 @@ set -euo pipefail
 
 # AWS EC2 VM Lifecycle
 # Launch, stop, start, destroy, ssh, status for bootc-based GPU instances.
-# Does NOT deploy services — use demo.sh for that.
+# Does NOT deploy services — use ../demo.sh for that.
 
 AWS_REGION="${AWS_REGION:-eu-central-1}"
 AWS_AZ="${AWS_AZ:-}"
@@ -48,7 +48,7 @@ Environment variables:
     INSTANCE_TAG    Name tag for the instance (default: vjepa2-demo)
 
 After launch, use demo.sh to deploy services:
-    ./demo.sh setup
+    ../demo.sh setup
 EOF
     exit 1
 }
@@ -231,7 +231,7 @@ Public IP:    $public_ip
 Type:         $INSTANCE_TYPE ($accel)
 
 Next: deploy services with demo.sh:
-  ./demo.sh setup
+  ../demo.sh setup
 EOF
 }
 

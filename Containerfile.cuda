@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --extra-index-url https://pypi.org/simple/ -r requirements.txt
 
 COPY app/ ./app/
-COPY configs/ ./configs/
+COPY deploy/configs/ ./configs/
 COPY static/ ./static/
 
 VOLUME /model

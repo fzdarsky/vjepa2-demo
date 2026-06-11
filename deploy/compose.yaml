@@ -3,7 +3,7 @@ services:
     profiles: [cuda]
     image: quay.io/fzdarsky/vjepa2-server-cuda:latest
     build:
-      context: .
+      context: ..
       dockerfile: Containerfile.cuda
     ports:
       - "8443:8443"
@@ -11,9 +11,9 @@ services:
       - nvidia.com/gpu=all
     volumes:
       - vjepa2-model-vitl:/model:ro
-      - ./samples:/input:ro,z
-      - ./output:/output:z
-      - ./certs:/certs:ro,z
+      - ../samples:/input:ro,z
+      - ../output:/output:z
+      - ../certs:/certs:ro,z
     environment:
       - DEVICE=cuda
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -24,15 +24,15 @@ services:
     profiles: [cpu]
     image: quay.io/fzdarsky/vjepa2-server-cpu:latest
     build:
-      context: .
+      context: ..
       dockerfile: Containerfile.cpu
     ports:
       - "8443:8443"
     volumes:
       - vjepa2-model-vitl:/model:ro
-      - ./samples:/input:ro,z
-      - ./output:/output:z
-      - ./certs:/certs:ro,z
+      - ../samples:/input:ro,z
+      - ../output:/output:z
+      - ../certs:/certs:ro,z
     environment:
       - DEVICE=cpu
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
@@ -41,7 +41,7 @@ services:
 
   otel-collector:
     profiles: [observability]
-    image: otel/opentelemetry-collector-contrib:latest
+    image: docker.io/otel/opentelemetry-collector-contrib:latest
     ports:
       - "4317:4317"
       - "8889:8889"
@@ -52,7 +52,7 @@ services:
     profiles: [observability]
     image: docker.io/prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - prometheus-data:/prometheus
       - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yml:ro,z
@@ -68,7 +68,7 @@ services:
 
   grafana:
     profiles: [observability]
-    image: grafana/grafana:latest
+    image: docker.io/grafana/grafana:latest
     ports:
       - "3000:3000"
     environment:
@@ -82,7 +82,7 @@ services:
 
   dcgm-exporter:
     profiles: [gpu-metrics]
-    image: nvidia/dcgm-exporter:latest
+    image: docker.io/nvidia/dcgm-exporter:latest
     devices:
       - nvidia.com/gpu=all
     ports:

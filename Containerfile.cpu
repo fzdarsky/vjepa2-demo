@@ -3,6 +3,10 @@ FROM registry.redhat.io/ubi9/python-312:latest
 WORKDIR /app
 
 # All dependencies from Red Hat RHOAI index (includes torch, av, transformers, etc.)
+USER 0
+RUN dnf install -y openblas-threads && dnf clean all
+USER 1001
+
 ARG RH_INDEX=https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.4/cpu-ubi9/simple/
 COPY requirements.txt .
 RUN pip install --no-cache-dir --index-url ${RH_INDEX} \
@@ -10,7 +14,7 @@ RUN pip install --no-cache-dir --index-url ${RH_INDEX} \
     -r requirements.txt
 
 COPY app/ ./app/
-COPY configs/ ./configs/
+COPY deploy/configs/ ./configs/
 COPY static/ ./static/
 
 VOLUME /model
