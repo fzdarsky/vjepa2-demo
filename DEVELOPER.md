@@ -31,11 +31,16 @@ Two container variants are available:
 | CUDA | RHOAI pipeline runtime | x86_64 | NVIDIA GPU |
 
 ```bash
-# Build CPU variant
+# Build locally
 podman build -t vjepa2-server-cpu -f Containerfile.cpu .
-
-# Build CUDA variant
 podman build -t vjepa2-server-cuda -f Containerfile.cuda .
+
+# Multi-arch builds via remote hosts (see build.sh for details)
+./build.sh cpu              # Build CPU on both archs
+./build.sh cpu-manifest     # Build CPU + push + create manifest
+./build.sh cuda             # Build CUDA (amd64 only)
+./build.sh cuda-manifest    # Build CUDA + push
+./build.sh all              # Build all images with manifests
 ```
 
 Both images pull from `registry.redhat.io` (Red Hat subscription required). Run `podman login registry.redhat.io` first.

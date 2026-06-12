@@ -1,3 +1,15 @@
+# RHEL 10 Bootc Image with NVIDIA Drivers
+#
+# Creates a bootable container image for EC2 with pre-installed NVIDIA drivers.
+# Use bootc-image-builder to convert to AMI.
+#
+# Build:
+#   podman build -f Containerfile.rhel10 -t quay.io/fzdarsky/rhel10-nv-bootc:latest .
+#   podman push quay.io/fzdarsky/rhel10-nv-bootc:latest
+#
+# Convert to AMI:
+#   ./build-ami.sh
+
 FROM registry.redhat.io/rhel10/rhel-bootc:10.0
 
 # Install pre-compiled NVIDIA drivers + container toolkit from Red Hat repos
@@ -21,6 +33,18 @@ RUN dnf install -y \
     python3 \
     python3-pip \
     cloud-init \
+    # Development and debugging tools
+    rsync \
+    curl \
+    wget \
+    jq \
+    vim-minimal \
+    less \
+    bind-utils \
+    iproute \
+    procps-ng \
+    tar \
+    gzip \
     && dnf clean all
 
 # Enable cloud-init for EC2
@@ -35,6 +59,15 @@ RUN echo -e "system_info:\n  default_user:\n    name: ec2-user" > /etc/cloud/clo
 
 # Install podman-compose
 RUN pip3 install podman-compose
+
+# Harden sshd for automated agents: protect against resource starvation
+# during heavy container pulls on 4-vCPU instances
+COPY sshd-coding-agent.conf /etc/ssh/sshd_config.d/99-coding-agent.conf
+RUN mkdir -p /etc/systemd/system/sshd.service.d
+COPY sshd-override.conf /etc/systemd/system/sshd.service.d/override.conf
+
+# Disable firewalld — EC2 security groups handle firewalling
+RUN systemctl disable firewalld 2>/dev/null || true
 
 # Create systemd service to generate CDI spec on boot
 COPY nvidia-cdi-generate.service /etc/systemd/system/

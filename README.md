@@ -70,6 +70,37 @@ oc apply -k deploy/openshift/overlays/cuda/
 
 See [deploy/openshift/README.md](deploy/openshift/README.md) for the full deployment guide including prerequisites, troubleshooting, and architecture details.
 
+## Building Model Images
+
+The model weights are distributed as OCI "ModelCar" images — container images that hold only model files, mounted as volumes at runtime. Pre-built images are available at `quay.io/fzdarsky/`, but you can rebuild them with `scripts/build-model-images.sh`.
+
+```bash
+# Build and push both models (monolithic, single safetensors layer)
+./scripts/build-model-images.sh all
+
+# Build only ViT-L, don't push
+./scripts/build-model-images.sh --no-push vitl
+
+# Shard safetensors into 4 layers for parallel registry pulls
+./scripts/build-model-images.sh --shard vitl
+
+# Shard into 8 layers, custom registry
+./scripts/build-model-images.sh --shard 8 --registry quay.io/myorg vitg
+```
+
+**Options:**
+
+| Flag             | Default              | Description                                              |
+| ---------------- | -------------------- | -------------------------------------------------------- |
+| `--shard [N]`    | off (4 if enabled)   | Split safetensors into N OCI layers for concurrent pulls |
+| `--registry URL` | `quay.io/fzdarsky`   | Target container registry                                |
+| `--work-dir DIR` | `~/jepa-model-build` | Working directory for downloads and builds               |
+| `--no-push`      | push enabled         | Build only, skip pushing to registry                     |
+
+**Sharding** splits the single `model.safetensors` into multiple files (e.g. `model-00001-of-00004.safetensors`) plus a `model.safetensors.index.json`. Each shard becomes a separate OCI layer, so container runtimes pull them concurrently. The index ensures the sharded model remains loadable by HuggingFace `transformers` and vLLM.
+
+**Requirements:** Python 3.12+ with `torch`, `safetensors`, and `huggingface_hub`; Podman with registry credentials (`podman login`).
+
 ## Using the Web UI
 
 Open https://localhost:8443. Three input modes are available:

@@ -10,9 +10,9 @@ AWS_AZ="${AWS_AZ:-}"
 
 get_default_ami() {
     case "$1" in
-        us-east-2)     echo "ami-0d8baa6402e6ad095" ;;
-        eu-central-1)  echo "ami-08f8a3356f7b9ff20" ;;
-        eu-west-1)     echo "ami-0b352dc05b510010f" ;;
+        us-east-2)     echo "ami-051ce2f32318173dd" ;;
+        eu-central-1)  echo "ami-0ff3afa64b4c458d6" ;;
+        eu-west-1)     echo "ami-0876d71e21c8880d4" ;;
         *)             echo "" ;;
     esac
 }

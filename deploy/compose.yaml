@@ -16,6 +16,7 @@ services:
       - ../certs:/certs:ro,z
     environment:
       - DEVICE=cuda
+      - MODEL_PATH=${MODEL_PATH:-/model}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - SSL_KEYFILE=${SSL_KEYFILE:-}
       - SSL_CERTFILE=${SSL_CERTFILE:-}
@@ -35,6 +36,7 @@ services:
       - ../certs:/certs:ro,z
     environment:
       - DEVICE=cpu
+      - MODEL_PATH=${MODEL_PATH:-/model}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - SSL_KEYFILE=${SSL_KEYFILE:-}
       - SSL_CERTFILE=${SSL_CERTFILE:-}
